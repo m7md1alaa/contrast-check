@@ -1,4 +1,4 @@
-import { BrowserManager } from './browser.js';
+import { BrowserManager } from './browser';
 
 export interface ScreenshotTarget {
   selector: string;

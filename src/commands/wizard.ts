@@ -1,6 +1,6 @@
 import inquirer from 'inquirer';
-import { checkCommand } from './check.js';
-import { logger } from '../utils/logger.js';
+import { checkCommand } from './check';
+import { logger } from '../utils/logger';
 
 export async function wizardCommand() {
   logger.box('ContrastCheck Wizard', 'Answer a few questions to configure your scan.');

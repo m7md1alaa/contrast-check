@@ -1,6 +1,6 @@
-import { BrowserManager } from './browser.js';
-import { createExtractorScript } from './extractor.js';
-import { PageResult } from './types.js';
+import { BrowserManager } from './browser';
+import { createExtractorScript } from './extractor';
+import { PageResult } from './types';
 
 export interface ScanOptions {
   url: string;
@@ -28,7 +28,7 @@ export async function scanPage(options: ScanOptions): Promise<PageResult> {
     const title = await page.title();
 
     const extractor = createExtractorScript();
-    const pairs = await page.evaluate(extractor as any) as import('./types.js').ElementColorPair[];
+    const pairs = await page.evaluate(extractor as any) as import('./types').ElementColorPair[];
 
     return {
       url: options.url,

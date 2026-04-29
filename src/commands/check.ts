@@ -1,12 +1,12 @@
-import { scanPage } from '../scanner/crawler.js';
-import { captureElementScreenshots } from '../scanner/screenshot.js';
-import { parseColor, rgbToHex } from '../analyzer/color.js';
-import { calculateContrast } from '../analyzer/contrast.js';
-import { suggestFix } from '../analyzer/suggest.js';
-import { generateReport } from '../report/generator.js';
-import { logger } from '../utils/logger.js';
-import { resolveTarget } from '../utils/url.js';
-import { AnalyzedPage } from '../scanner/types.js';
+import { scanPage } from '../scanner/crawler';
+import { captureElementScreenshots } from '../scanner/screenshot';
+import { parseColor, rgbToHex } from '../analyzer/color';
+import { calculateContrast } from '../analyzer/contrast';
+import { suggestFix } from '../analyzer/suggest';
+import { generateReport } from '../report/generator';
+import { logger } from '../utils/logger';
+import { resolveTarget } from '../utils/url';
+import { AnalyzedPage } from '../scanner/types';
 import { writeFileSync, existsSync } from 'fs';
 
 function isLargeText(fontSize: string, fontWeight: string): boolean {

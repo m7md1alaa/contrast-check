@@ -1,4 +1,4 @@
-import { RGBA, blend } from './color.js';
+import { RGBA, blend } from './color';
 
 export interface ContrastResult {
   ratio: number;

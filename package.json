@@ -8,9 +8,10 @@
     "contrastcheck": "./bin/contrastcheck.js"
   },
   "scripts": {
-    "build": "tsc",
-    "dev": "tsx src/index.ts",
-    "check": "node bin/contrastcheck.js",
+    "build": "bun build src/index.ts --outdir dist --target bun --packages external",
+    "dev": "bun src/index.ts",
+    "check": "bun bin/contrastcheck.js",
+    "typecheck": "tsc --noEmit",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": ["accessibility", "a11y", "contrast", "wcag", "color"],
@@ -30,7 +31,6 @@
   "devDependencies": {
     "@types/inquirer": "^9.0.9",
     "@types/node": "^25.6.0",
-    "tsx": "^4.21.0",
     "typescript": "^6.0.3"
   }
 }

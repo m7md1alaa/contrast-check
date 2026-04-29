@@ -1,5 +1,5 @@
-import { RGBA, rgbToHex } from './color.js';
-import { calculateContrast, ContrastResult } from './contrast.js';
+import { RGBA, rgbToHex } from './color';
+import { calculateContrast, ContrastResult } from './contrast';
 
 export function suggestFix(
   fg: RGBA,

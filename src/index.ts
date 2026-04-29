@@ -1,6 +1,6 @@
 import { Command } from 'commander';
-import { checkCommand } from './commands/check.js';
-import { wizardCommand } from './commands/wizard.js';
+import { checkCommand } from './commands/check';
+import { wizardCommand } from './commands/wizard';
 
 const program = new Command();
 

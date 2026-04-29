@@ -1,4 +1,4 @@
-import { AnalyzedPage } from '../scanner/types.js';
+import { AnalyzedPage } from '../scanner/types';
 
 export function generateReport(pages: AnalyzedPage[]): string {
   // Inline the template - we'll build it as a string to avoid fs dependencies at runtime

@@ -427,11 +427,23 @@ export async function checkCommand(url: string, options: CheckOptions) {
             if (!options.quiet) {
               logger.warning(`Could not discover links: ${err.message}`);
             }
+          } finally {
+            if (discoverPage) {
+              await discoverPage.close().catch(() => {});
+            }
           }
         }
 
         // ── Scan all pages ──
         const pages = await scanMultiplePages(pagesToScan, options, browser);
+
+        if (pages.length === 0 && pagesToScan.length > 0) {
+          if (!options.quiet) {
+            logger.error('All pages failed to scan');
+          }
+          await browser.close();
+          process.exit(1);
+        }
 
         // ── Capture screenshots ──
         const pagesWithViolations = pages.filter((p) => p.violations.length > 0);

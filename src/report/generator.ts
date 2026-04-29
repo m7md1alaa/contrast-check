@@ -2,7 +2,7 @@ import { AnalyzedPage } from '../scanner/types';
 
 export function generateReport(pages: AnalyzedPage[]): string {
   // Inline the template - we'll build it as a string to avoid fs dependencies at runtime
-  const dataJson = JSON.stringify(pages, null, 2);
+  const dataJson = JSON.stringify(pages, null, 2).replace(/</g, '\\u003c');
 
   return `<!DOCTYPE html>
 <html lang="en">

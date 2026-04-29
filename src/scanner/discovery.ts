@@ -28,7 +28,7 @@ const NON_PAGE_EXTENSIONS = [
   '.txt', '.md', '.csv',
 ];
 
-function isSameOrigin(url1: string, url2: string): boolean {
+export function isSameOrigin(url1: string, url2: string): boolean {
   try {
     const a = new URL(url1);
     const b = new URL(url2);
@@ -38,7 +38,7 @@ function isSameOrigin(url1: string, url2: string): boolean {
   }
 }
 
-function normalizeUrl(href: string, baseUrl: string): string | null {
+export function normalizeUrl(href: string, baseUrl: string): string | null {
   try {
     const url = new URL(href, baseUrl);
     // Remove fragment
@@ -54,7 +54,7 @@ function normalizeUrl(href: string, baseUrl: string): string | null {
   }
 }
 
-function shouldIncludeUrl(
+export function shouldIncludeUrl(
   url: string,
   baseUrl: string,
   excludePatterns: string[],

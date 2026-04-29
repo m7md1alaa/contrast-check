@@ -1,5 +1,5 @@
 import { spawn } from 'child_process';
-import { resolve } from 'path';
+import { resolve as resolvePath } from 'path';
 
 export interface CliResult {
   stdout: string;
@@ -9,7 +9,7 @@ export interface CliResult {
 
 export function runCli(args: string[]): Promise<CliResult> {
   return new Promise((resolve) => {
-    const binPath = resolve(process.cwd(), 'bin', 'contrastcheck.js');
+    const binPath = resolvePath(process.cwd(), 'bin', 'contrastcheck.js');
     const child = spawn('bun', [binPath, ...args], {
       env: { ...process.env, NODE_ENV: 'test' },
     });

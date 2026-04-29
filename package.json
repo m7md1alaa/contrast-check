@@ -16,7 +16,13 @@
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "test:all": "vitest run && vitest run --config vitest.e2e.config.ts"
   },
-  "keywords": ["accessibility", "a11y", "contrast", "wcag", "color"],
+  "keywords": [
+    "accessibility",
+    "a11y",
+    "contrast",
+    "wcag",
+    "color"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {

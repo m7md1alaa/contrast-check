@@ -17,7 +17,10 @@ program
   .option('--no-headless', 'Show browser window during scan')
   .option('-w, --viewport <wxh>', 'Viewport size', '1280x720')
   .option('--dark-mode', 'Force dark mode preference')
+  .option('-f, --format <type>', 'Output format: html, json, compact', 'html')
   .option('--json', 'Output JSON to stdout instead of HTML report')
+  .option('-q, --quiet', 'Minimal output (no spinners, progress bars)')
+  .option('--watch', 'Watch for file changes and re-check automatically')
   .action(checkCommand);
 
 program

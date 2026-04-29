@@ -8,7 +8,7 @@
     "contrastcheck": "./bin/contrastcheck.js"
   },
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --target bun --packages external",
+    "build": "bun build src/index.ts --outdir dist --target bun --packages external --sourcemap=none",
     "dev": "bun src/index.ts",
     "check": "bun bin/contrastcheck.js",
     "typecheck": "tsc --noEmit",

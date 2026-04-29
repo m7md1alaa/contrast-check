@@ -1,0 +1,36 @@
+{
+  "name": "contrastcheck",
+  "version": "1.0.0",
+  "description": "Check color contrast accessibility on websites",
+  "main": "dist/index.js",
+  "type": "module",
+  "bin": {
+    "contrastcheck": "./bin/contrastcheck.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "check": "node bin/contrastcheck.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["accessibility", "a11y", "contrast", "wcag", "color"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "boxen": "^8.0.1",
+    "chalk": "^5.6.2",
+    "cli-table3": "^0.6.5",
+    "commander": "^14.0.3",
+    "culori": "^4.0.2",
+    "handlebars": "^4.7.9",
+    "inquirer": "^13.4.2",
+    "ora": "^9.4.0",
+    "playwright": "^1.59.1"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^9.0.9",
+    "@types/node": "^25.6.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
+  }
+}

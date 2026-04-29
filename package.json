@@ -12,7 +12,7 @@
     "dev": "bun src/index.ts",
     "check": "bun bin/contrastcheck.js",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run"
   },
   "keywords": ["accessibility", "a11y", "contrast", "wcag", "color"],
   "author": "",
@@ -31,6 +31,7 @@
   "devDependencies": {
     "@types/inquirer": "^9.0.9",
     "@types/node": "^25.6.0",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
   }
 }

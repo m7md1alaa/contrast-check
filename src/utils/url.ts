@@ -35,7 +35,7 @@ export function resolveTarget(input: string): ResolvedTarget {
   if (original.startsWith('file://')) {
     return { type: 'file', value: original, original };
   }
-  if (original.startsWith('http://') || original.startsWith('https://')) {
+  if (original.includes('://')) {
     return { type: 'url', value: original, original };
   }
 

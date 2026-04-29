@@ -18,7 +18,8 @@ export interface RGBA {
 }
 
 export function parseColor(colorStr: string): RGBA | null {
-  if (!colorStr || colorStr === 'transparent') {
+  if (!colorStr) return null;
+  if (colorStr === 'transparent') {
     return { r: 0, g: 0, b: 0, a: 0 };
   }
 

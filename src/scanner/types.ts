@@ -32,7 +32,13 @@ export interface AnalyzedPair extends ElementColorPair {
   aaLarge: boolean;
   isLargeText: boolean;
   issueType: 'normal' | 'large';
-  suggestedFix: { color: any; hex: string; ratio: number } | null;
+  suggestedFix: {
+    color: any;
+    hex: string;
+    ratio: number;
+    property: 'color' | 'background-color';
+    deltaE: number;
+  } | null;
   screenshot?: string;
 }
 

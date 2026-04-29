@@ -1,32 +1,24 @@
-import { converter, clampRgb } from 'culori';
-import { RGBA, rgbToHex } from './color';
+import { converter, clampRgb, parse as culoriParse } from 'culori';
+import { RGBA, rgbToHex, formatColorPreservingMode } from './color';
 import { calculateContrast } from './contrast';
 
-const toLab = converter('lab');
+const toOklch = converter('oklch');
 const toRgb = converter('rgb');
 
-interface LabColor {
-  mode: 'lab';
-  l: number;
-  a: number;
-  b: number;
-  alpha?: number;
-}
-
-function rgbaToLab(c: RGBA): LabColor | null {
-  const result = toLab({
+function rgbaToOklch(c: RGBA) {
+  const result = toOklch({
     mode: 'rgb',
     r: c.r / 255,
     g: c.g / 255,
     b: c.b / 255,
     alpha: c.a,
   });
-  if (!result || Number.isNaN((result as any).l)) return null;
-  return result as unknown as LabColor;
+  if (!result || Number.isNaN(result.l)) return null;
+  return result;
 }
 
-function labToRgba(lab: any): RGBA {
-  const rgb = toRgb(lab);
+function oklchToRgba(oklch: any): RGBA {
+  const rgb = toRgb(oklch);
   const clamped = clampRgb(rgb);
   return {
     r: Math.round(clamped.r * 255),
@@ -36,12 +28,12 @@ function labToRgba(lab: any): RGBA {
   };
 }
 
-/** Euclidean distance in LAB space (simpler perceptual metric) */
-function labDistance(lab1: any, lab2: any): number {
+/** Perceptual distance in Oklch space (Euclidean in LCh is fine for ranking) */
+function oklchDistance(a: any, b: any): number {
   return Math.sqrt(
-    Math.pow(lab1.l - lab2.l, 2) +
-    Math.pow(lab1.a - lab2.a, 2) +
-    Math.pow(lab1.b - lab2.b, 2)
+    Math.pow(a.l - b.l, 2) +
+    Math.pow(a.c - b.c, 2) +
+    Math.pow((a.h ?? 0) - (b.h ?? 0), 2)
   );
 }
 
@@ -61,15 +53,16 @@ function generateLightnessCandidates(
   targetRatio: number,
   property: 'color' | 'background-color'
 ): SuggestedFix | null {
-  const originalLab = rgbaToLab(original);
-  if (!originalLab || Number.isNaN(originalLab.l)) return null;
+  const originalOklch = rgbaToOklch(original);
+  if (!originalOklch) return null;
 
   let best: SuggestedFix | null = null;
 
-  // Scan lightness from 0 to 100 in steps of 1
-  for (let l = 0; l <= 100; l += 1) {
-    const candidateLab = { mode: 'lab', l, a: originalLab.a, b: originalLab.b };
-    const candidateRgb = labToRgba(candidateLab);
+  // Scan lightness L from 0 to 1 in fine steps
+  // Oklch L is perceptually uniform: 0 = black, 1 = white
+  for (let l = 0; l <= 1; l += 0.005) {
+    const candidateOklch = { ...originalOklch, l };
+    const candidateRgb = oklchToRgba(candidateOklch);
 
     const ratio =
       property === 'color'
@@ -77,7 +70,7 @@ function generateLightnessCandidates(
         : calculateContrast(fixedBg, candidateRgb).ratio;
 
     if (ratio >= targetRatio) {
-      const deltaE = labDistance(originalLab, candidateLab);
+      const deltaE = oklchDistance(originalOklch, candidateOklch);
       if (!best || deltaE < best.deltaE) {
         best = {
           color: candidateRgb,
@@ -113,4 +106,74 @@ export function suggestFix(
     return fgFix.deltaE <= bgFix.deltaE ? fgFix : bgFix;
   }
   return fgFix || bgFix || null;
+}
+
+export interface VariableSuggestedFix {
+  variable: string;
+  newValue: string;
+  newHex: string;
+  contrastRatio: number;
+  property: 'color' | 'background-color';
+}
+
+/**
+ * Suggest a fix for a CSS variable while preserving its original color format.
+ * Uses Oklch for perceptual lightness adjustment while keeping chroma + hue.
+ */
+export function suggestVariableFix(
+  fg: RGBA,
+  bg: RGBA,
+  targetRatio: number,
+  variableRawValue: string,
+  variableName: string,
+  property: 'color' | 'background-color'
+): VariableSuggestedFix | null {
+  const parsed = culoriParse(variableRawValue);
+  if (!parsed) return null;
+
+  const originalOklch = toOklch(parsed);
+  if (!originalOklch || Number.isNaN(originalOklch.l)) return null;
+
+  const otherColor = property === 'color' ? bg : fg;
+
+  let best: { oklch: any; ratio: number; deltaE: number } | null = null;
+
+  for (let l = 0; l <= 1; l += 0.005) {
+    const candidateOklch = { ...originalOklch, l };
+    const candidateRgb = oklchToRgba(candidateOklch);
+
+    const ratio =
+      property === 'color'
+        ? calculateContrast(candidateRgb, otherColor).ratio
+        : calculateContrast(otherColor, candidateRgb).ratio;
+
+    if (ratio >= targetRatio) {
+      const deltaE = oklchDistance(originalOklch, candidateOklch);
+      if (!best || deltaE < best.deltaE) {
+        best = { oklch: candidateOklch, ratio, deltaE };
+      }
+    }
+  }
+
+  if (!best) return null;
+
+  // Convert back to the original color mode
+  const toOriginal = converter(parsed.mode);
+  const adjusted = toOriginal(best.oklch);
+  if (!adjusted) return null;
+
+  // Preserve original alpha
+  if (parsed.alpha !== undefined && parsed.alpha !== null) {
+    (adjusted as any).alpha = parsed.alpha;
+  }
+
+  const { css, hex } = formatColorPreservingMode(adjusted);
+
+  return {
+    variable: variableName,
+    newValue: css,
+    newHex: hex,
+    contrastRatio: best.ratio,
+    property,
+  };
 }

@@ -1,4 +1,4 @@
-import { AnalyzedPage, AnalyzedPair } from '../scanner/types';
+import { AnalyzedPage, AnalyzedPair, VariableIssue } from '../scanner/types';
 import { Formatter, FormatterOptions, FormatterResult } from './types';
 
 function hex(c: { r: number; g: number; b: number } | null): string {
@@ -12,7 +12,29 @@ function truncate(text: string, max: number): string {
   return text.length > max ? text.slice(0, max) + '...' : text;
 }
 
-function renderViolation(v: AnalyzedPair, idx: number): string {
+function renderVariableIssue(issue: VariableIssue, idx: number): string {
+  const lines: string[] = [];
+  const threshold = issue.property === 'color' ? '4.5' : '4.5';
+  const label = 'AA';
+
+  lines.push(
+    `[VAR #${idx + 1}] ${issue.variable} (${issue.property}) on ${issue.againstVariable || 'raw color'}`
+  );
+  lines.push(
+    `         ${issue.currentHex} on ${issue.againstHex} = ${issue.contrastRatio.toFixed(2)}:1 (${label} requires ${threshold}:1)`
+  );
+  lines.push(`         Affects ${issue.affectedCount} element${issue.affectedCount > 1 ? 's' : ''}`);
+
+  if (issue.suggestedFix) {
+    lines.push(
+      `         fix: change ${issue.suggestedFix.variable} to ${issue.suggestedFix.newValue} (${issue.suggestedFix.contrastRatio.toFixed(2)}:1)`
+    );
+  }
+
+  return lines.join('\n');
+}
+
+function renderOneOff(v: AnalyzedPair, idx: number): string {
   const lines: string[] = [];
   const threshold = v.isLargeText ? 3 : 4.5;
   const label = v.isLargeText ? 'AA Large' : 'AA';
@@ -48,10 +70,26 @@ function renderPage(page: AnalyzedPage): string {
   lines.push('━'.repeat(50));
   lines.push('');
 
-  page.violations.forEach((v, i) => {
-    lines.push(renderViolation(v, i));
+  // Design System Issues
+  if (page.variableIssues.length > 0) {
+    lines.push(`Design System Issues (${page.variableIssues.length} variable${page.variableIssues.length > 1 ? 's' : ''} → ${page.variableStats.affectedElements} element${page.variableStats.affectedElements > 1 ? 's' : ''})`);
     lines.push('');
-  });
+    page.variableIssues.forEach((issue, i) => {
+      lines.push(renderVariableIssue(issue, i));
+      lines.push('');
+    });
+  }
+
+  // One-off Issues
+  const oneOffs = page.violations.filter((v) => !v.colorVar && !v.bgVar);
+  if (oneOffs.length > 0) {
+    lines.push(`One-off Issues (${oneOffs.length} element${oneOffs.length > 1 ? 's' : ''})`);
+    lines.push('');
+    oneOffs.forEach((v, i) => {
+      lines.push(renderOneOff(v, i));
+      lines.push('');
+    });
+  }
 
   return lines.join('\n');
 }
@@ -60,6 +98,7 @@ export const compactFormatter: Formatter = {
   format(pages: AnalyzedPage[], _options?: FormatterOptions): FormatterResult {
     const totalViolations = pages.reduce((sum, p) => sum + p.violations.length, 0);
     const totalChecked = pages.reduce((sum, p) => sum + p.stats.total, 0);
+    const totalVariableIssues = pages.reduce((sum, p) => sum + p.variableIssues.length, 0);
 
     const lines: string[] = [];
 
@@ -69,6 +108,9 @@ export const compactFormatter: Formatter = {
     }
 
     lines.push(`${totalViolations} CONTRAST VIOLATION${totalViolations > 1 ? 'S' : ''} FOUND (${totalChecked} elements checked)`);
+    if (totalVariableIssues > 0) {
+      lines.push(`${totalVariableIssues} design system variable issue${totalVariableIssues > 1 ? 's' : ''} identified`);
+    }
     lines.push('');
 
     pages.forEach((page) => {

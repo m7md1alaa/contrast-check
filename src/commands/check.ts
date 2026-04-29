@@ -2,11 +2,11 @@ import { scanPage } from '../scanner/crawler';
 import { captureElementScreenshots } from '../scanner/screenshot';
 import { parseColor, rgbToHex } from '../analyzer/color';
 import { calculateContrast } from '../analyzer/contrast';
-import { suggestFix } from '../analyzer/suggest';
+import { suggestFix, suggestVariableFix } from '../analyzer/suggest';
 import { generateReport } from '../report/generator';
 import { logger } from '../utils/logger';
 import { resolveTarget } from '../utils/url';
-import { AnalyzedPage } from '../scanner/types';
+import { AnalyzedPage, AnalyzedPair, VariableIssue } from '../scanner/types';
 import { writeFileSync, existsSync } from 'fs';
 import { getFormatter } from '../formatters';
 import { watchFile, watchProject } from '../utils/watch';
@@ -55,7 +55,9 @@ async function analyze(
     pairs: [],
     violations: [],
     passes: [],
+    variableIssues: [],
     stats: { total: 0, passAA: 0, passAAA: 0, failAA: 0, failAAA: 0 },
+    variableStats: { uniqueIssues: 0, affectedElements: 0, oneOffIssues: 0 },
     scannedAt: result.scannedAt,
   };
 
@@ -102,6 +104,94 @@ async function analyze(
       if (!contrast.aaLarge) analyzed.stats.failAAA++;
     }
   }
+
+  // ── Group violations by CSS variable for design-system-aware reporting ──
+  const varGroups = new Map<string, AnalyzedPair[]>();
+  const oneOffViolations: AnalyzedPair[] = [];
+
+  for (const v of analyzed.violations) {
+    // Only group when at least one side is a known variable
+    const hasVar = v.colorVar || v.bgVar;
+    if (!hasVar) {
+      oneOffViolations.push(v);
+      continue;
+    }
+    const key = `${v.colorVar || 'raw'}|${v.bgVar || 'raw'}|${v.issueType}`;
+    const group = varGroups.get(key);
+    if (group) {
+      group.push(v);
+    } else {
+      varGroups.set(key, [v]);
+    }
+  }
+
+  const variableIssues: VariableIssue[] = [];
+  for (const [, group] of varGroups) {
+    const first = group[0];
+    const variable = first.colorVar || first.bgVar!;
+    const property: 'color' | 'background-color' = first.colorVar ? 'color' : 'background-color';
+    const againstVariable = first.colorVar ? first.bgVar || null : first.colorVar || null;
+
+    const currentValue =
+      property === 'color'
+        ? first.color
+        : first.background;
+    const againstValue =
+      property === 'color'
+        ? first.background
+        : first.color;
+
+    const threshold = first.isLargeText ? 3 : 4.5;
+
+    // Try to get the raw CSS variable value from the first instance's extraction
+    // (We don't have the raw value in AnalyzedPair, so we use the computed color
+    //  as fallback and let suggestVariableFix attempt to parse it.)
+    const rawForSuggestion = currentValue;
+
+    const variableSuggestion = suggestVariableFix(
+      first.fgParsed!,
+      first.bgParsed!,
+      threshold,
+      rawForSuggestion,
+      variable,
+      property
+    );
+
+    variableIssues.push({
+      variable,
+      property,
+      currentValue,
+      currentHex: rgbToHex(first.fgParsed!),
+      againstVariable,
+      againstValue,
+      againstHex: rgbToHex(first.bgParsed!),
+      contrastRatio: first.contrastRatio,
+      aa: first.aa,
+      aaa: first.aaa,
+      affectedCount: group.length,
+      suggestedFix: variableSuggestion
+        ? {
+            variable: variableSuggestion.variable,
+            newValue: variableSuggestion.newValue,
+            newHex: variableSuggestion.newHex,
+            contrastRatio: variableSuggestion.contrastRatio,
+            property: variableSuggestion.property,
+          }
+        : null,
+      instances: group.map((g) => ({
+        selector: g.selector,
+        text: g.text,
+        xpath: g.xpath,
+      })),
+    });
+  }
+
+  analyzed.variableIssues = variableIssues;
+  analyzed.variableStats = {
+    uniqueIssues: variableIssues.length,
+    affectedElements: variableIssues.reduce((s, v) => s + v.affectedCount, 0),
+    oneOffIssues: oneOffViolations.length,
+  };
 
   if (analyzeSpinner)
     logger.stopSpinner(

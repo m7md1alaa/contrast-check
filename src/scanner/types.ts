@@ -14,6 +14,8 @@ export interface ElementColorPair {
   fontSize: string;
   fontWeight: string;
   isVisible: boolean;
+  colorVar?: string; // CSS custom property that produced the color, if any
+  bgVar?: string; // CSS custom property that produced the background, if any
 }
 
 export interface PageResult {
@@ -42,18 +44,52 @@ export interface AnalyzedPair extends ElementColorPair {
   screenshot?: string;
 }
 
+export interface VariableIssueInstance {
+  selector: string;
+  text: string;
+  xpath: string;
+}
+
+export interface VariableIssue {
+  variable: string;
+  property: 'color' | 'background-color';
+  currentValue: string;
+  currentHex: string;
+  againstVariable: string | null;
+  againstValue: string;
+  againstHex: string;
+  contrastRatio: number;
+  aa: boolean;
+  aaa: boolean;
+  affectedCount: number;
+  suggestedFix: {
+    variable: string;
+    newValue: string;
+    newHex: string;
+    contrastRatio: number;
+    property: 'color' | 'background-color';
+  } | null;
+  instances: VariableIssueInstance[];
+}
+
 export interface AnalyzedPage {
   url: string;
   title: string;
   pairs: AnalyzedPair[];
   violations: AnalyzedPair[];
   passes: AnalyzedPair[];
+  variableIssues: VariableIssue[];
   stats: {
     total: number;
     passAA: number;
     passAAA: number;
     failAA: number;
     failAAA: number;
+  };
+  variableStats: {
+    uniqueIssues: number;
+    affectedElements: number;
+    oneOffIssues: number;
   };
   scannedAt: string;
 }

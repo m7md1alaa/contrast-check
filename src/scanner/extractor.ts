@@ -9,6 +9,8 @@ export interface ExtractedPair {
   fontSize: string;
   fontWeight: string;
   isVisible: boolean;
+  colorVar?: string;
+  bgVar?: string;
 }
 
 export function createExtractorScript() {
@@ -86,6 +88,88 @@ export function createExtractorScript() {
       return resolveBackgroundColor(el.parentElement);
     }
 
+    // ── CSS Variable extraction ──
+    interface VarInfo {
+      varName: string;
+      rawValue: string;
+    }
+
+    function extractVariableMap(): Map<string, VarInfo> {
+      const map = new Map<string, VarInfo>();
+      const varNames = new Set<string>();
+
+      // Collect all custom property names from stylesheets
+      for (let i = 0; i < document.styleSheets.length; i++) {
+        const sheet = document.styleSheets[i];
+        try {
+          const rules = (sheet as any).cssRules || (sheet as any).rules;
+          if (!rules) continue;
+          for (let j = 0; j < rules.length; j++) {
+            const rule = rules[j];
+            if (rule && (rule as any).style) {
+              const style = (rule as any).style;
+              for (let k = 0; k < style.length; k++) {
+                const prop = style[k];
+                if (prop && prop.startsWith('--')) varNames.add(prop);
+              }
+            }
+          }
+        } catch (e) {
+          // Cross-origin stylesheet, skip
+        }
+      }
+
+      // Also collect from inline styles on documentElement and body
+      const collectInline = (el: Element) => {
+        const style = el.getAttribute('style');
+        if (style) {
+          const matches = style.match(/--[\w-]+/g);
+          if (matches) matches.forEach(v => varNames.add(v));
+        }
+      };
+      collectInline(document.documentElement);
+      collectInline(document.body);
+
+      // Resolve each variable to a computed color using a temp element
+      const temp = document.createElement('div');
+      temp.style.position = 'absolute';
+      temp.style.visibility = 'hidden';
+      document.body.appendChild(temp);
+
+      for (const varName of varNames) {
+        const rawValue = window.getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+        if (!rawValue) continue;
+
+        // Try as color
+        temp.style.color = '';
+        temp.style.color = `var(${varName})`;
+        const resolvedColor = window.getComputedStyle(temp).color;
+        if (resolvedColor && resolvedColor !== 'rgba(0, 0, 0, 0)' && resolvedColor !== 'transparent') {
+          const existing = map.get(resolvedColor);
+          // Prefer shorter names (more canonical) when colors collide
+          if (!existing || varName.length < existing.varName.length) {
+            map.set(resolvedColor, { varName, rawValue });
+          }
+        }
+
+        // Try as background color too
+        temp.style.backgroundColor = '';
+        temp.style.backgroundColor = `var(${varName})`;
+        const resolvedBg = window.getComputedStyle(temp).backgroundColor;
+        if (resolvedBg && resolvedBg !== 'rgba(0, 0, 0, 0)' && resolvedBg !== 'transparent') {
+          const existing = map.get(resolvedBg);
+          if (!existing || varName.length < existing.varName.length) {
+            map.set(resolvedBg, { varName, rawValue });
+          }
+        }
+      }
+
+      document.body.removeChild(temp);
+      return map;
+    }
+
+    const variableMap = extractVariableMap();
+
     const pairs: ExtractedPair[] = [];
     const walker = document.createTreeWalker(
       document.body,
@@ -120,6 +204,10 @@ export function createExtractorScript() {
       const fontWeight = style.fontWeight;
       const visible = isVisible(element);
 
+      // Match computed colors to CSS variables
+      const colorVar = variableMap.get(color)?.varName;
+      const bgVar = variableMap.get(background)?.varName;
+
       pairs.push({
         text: text.length > 100 ? text.slice(0, 100) + '...' : text,
         tag: element.tagName.toLowerCase(),
@@ -136,6 +224,8 @@ export function createExtractorScript() {
         fontSize,
         fontWeight,
         isVisible: visible,
+        colorVar,
+        bgVar,
       });
     }
 

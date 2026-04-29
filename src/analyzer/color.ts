@@ -1,6 +1,8 @@
 import {
   parse,
   converter,
+  formatCss,
+  formatHex,
   Rgba,
   Rgb,
   clampRgb,
@@ -55,4 +57,45 @@ export function blend(fg: RGBA, bg: RGBA): { r: number; g: number; b: number } {
 
 export function isTransparent(color: RGBA): boolean {
   return color.a === 0;
+}
+
+/**
+ * Round numeric values inside a CSS color function string to a sane precision.
+ * e.g. oklch(0.5646550625783017 0.08000126639875797 180.53331328594822)
+ *   -> oklch(0.565 0.08 180.533)
+ */
+function roundCssNumbers(css: string): string {
+  return css.replace(/-?\d+\.\d+/g, (match) => {
+    const n = parseFloat(match);
+    // For angles (0-360), keep 1 decimal. For others, keep 3 decimals.
+    const isAngle = n > 100 && n <= 360 && css.includes('oklch');
+    const rounded = isAngle ? Math.round(n * 10) / 10 : Math.round(n * 1000) / 1000;
+    return rounded.toString();
+  });
+}
+
+/**
+ * Format a culori color object back to CSS using the same color mode as the original.
+ * Falls back to hex if formatCss fails.
+ */
+export function formatColorPreservingMode(color: any): { css: string; hex: string } {
+  let css: string;
+  try {
+    css = formatCss(color);
+    css = roundCssNumbers(css);
+  } catch {
+    const rgb = toRgb(color);
+    css = rgb ? `rgb(${Math.round(rgb.r * 255)}, ${Math.round(rgb.g * 255)}, ${Math.round(rgb.b * 255)})` : 'black';
+  }
+  let hex: string;
+  try {
+    hex = formatHex(color) || rgbToHex({
+      r: Math.round((toRgb(color)?.r ?? 0) * 255),
+      g: Math.round((toRgb(color)?.g ?? 0) * 255),
+      b: Math.round((toRgb(color)?.b ?? 0) * 255),
+    });
+  } catch {
+    hex = '#000000';
+  }
+  return { css, hex };
 }

@@ -57,6 +57,15 @@ export function generateReport(pages: AnalyzedPage[]): string {
   .screenshot img { display:block; width:100%; height:auto; }
   .screenshot-label { font-size:.625rem; color:var(--muted); padding:.25rem .5rem; background:#0f172a; }
   .empty { text-align:center; padding:2rem; color:var(--muted); }
+  .var-issue { background:#162032; border:1px solid #334155; border-radius:.5rem; padding:1rem; margin-bottom:.75rem; }
+  .var-issue-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:.5rem; }
+  .var-name { font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-size:.875rem; color:var(--accent); }
+  .var-count { font-size:.75rem; color:var(--muted); }
+  .var-detail { font-size:.75rem; color:var(--muted); margin-top:.25rem; }
+  .var-suggestion { font-size:.75rem; margin-top:.5rem; padding:.5rem; background:rgba(56,189,248,.08); border-radius:.25rem; }
+  .var-instances { margin-top:.5rem; font-size:.75rem; color:var(--muted); }
+  .var-instance-tag { display:inline-block; background:#0f172a; padding:.125rem .375rem; border-radius:.25rem; margin-right:.25rem; margin-bottom:.25rem; }
+  .section-title { font-size:1rem; font-weight:600; margin-bottom:.75rem; margin-top:1rem; }
   @media (max-width:640px) { .pair { grid-template-columns:1fr; } }
 </style>
 </head>
@@ -84,6 +93,7 @@ function renderSummary() {
   const passAA = pages.reduce((s,p)=>s+p.stats.passAA,0);
   const failAA = pages.reduce((s,p)=>s+p.stats.failAA,0);
   const violations = pages.reduce((s,p)=>s+p.violations.length,0);
+  const varIssues = pages.reduce((s,p)=>s+p.variableIssues.length,0);
 
   const stats = [
     { label:'Pages', value:pages.length },
@@ -92,6 +102,9 @@ function renderSummary() {
     { label:'Fail AA', value:failAA, cls:'fail' },
     { label:'Violations', value:violations, cls:'fail' },
   ];
+  if (varIssues > 0) {
+    stats.push({ label:'Var Issues', value:varIssues, cls:'warn' });
+  }
 
   const container = document.getElementById('summary');
   stats.forEach(s => {
@@ -102,60 +115,32 @@ function renderSummary() {
   });
 }
 
-function renderPages() {
-  const container = document.getElementById('pages');
-  pages.forEach((page, idx) => {
-    const section = el('div', {className:'page-section'}, []);
+function renderVariableIssue(issue) {
+  const div = el('div', {className:'var-issue'}, []);
 
-    const header = el('div', {className:'page-header'}, [
-      el('div', {}, [
-        el('div', {className:'page-title', textContent:page.title || 'Untitled'}),
-        el('div', {className:'page-url', textContent:page.url})
-      ]),
-      el('div', {className:'page-meta'}, [
-        el('span', {className:'badge badge-pass', textContent:page.stats.passAA+' pass'}),
-        el('span', {className:'badge badge-fail', textContent:page.stats.failAA+' fail'})
-      ])
-    ]);
+  const header = el('div', {className:'var-issue-header'}, [
+    el('div', {}, [
+      el('div', {className:'var-name', textContent:issue.variable + ' (' + issue.property + ')'}),
+      el('div', {className:'var-detail', textContent:issue.currentHex + ' on ' + (issue.againstVariable || issue.againstHex) + ' = ' + issue.contrastRatio + ':1'})
+    ]),
+    el('div', {className:'var-count', textContent:issue.affectedCount + ' element' + (issue.affectedCount>1?'s':'')})
+  ]);
+  div.appendChild(header);
 
-    header.onclick = () => body.classList.toggle('open');
+  if (issue.suggestedFix) {
+    div.appendChild(el('div', {className:'var-suggestion', textContent:'Suggested: ' + issue.suggestedFix.newValue + ' (' + issue.suggestedFix.contrastRatio.toFixed(2) + ':1)'}));
+  }
 
-    const body = el('div', {className:'page-body'}, []);
-    if (idx===0) body.classList.add('open');
-
-    const filters = el('div', {className:'filters'}, []);
-    const filterAll = el('button', {className:'filter-btn active', textContent:'All'});
-    const filterFail = el('button', {className:'filter-btn', textContent:'Failures'});
-    const filterPass = el('button', {className:'filter-btn', textContent:'Passes'});
-    filters.append(filterAll, filterFail, filterPass);
-
-    const pairList = el('div', {className:'pair-list'}, []);
-
-    function applyFilter(type) {
-      [filterAll, filterFail, filterPass].forEach(b=>b.classList.remove('active'));
-      if (type==='all') filterAll.classList.add('active');
-      if (type==='fail') filterFail.classList.add('active');
-      if (type==='pass') filterPass.classList.add('active');
-
-      pairList.innerHTML = '';
-      const items = type==='fail' ? page.violations : type==='pass' ? page.passes : page.pairs;
-      if (items.length===0) {
-        pairList.appendChild(el('div', {className:'empty', textContent:'No items'}));
-        return;
-      }
-      items.forEach(p => pairList.appendChild(renderPair(p)));
-    }
-
-    filterAll.onclick = (e) => { e.stopPropagation(); applyFilter('all'); };
-    filterFail.onclick = (e) => { e.stopPropagation(); applyFilter('fail'); };
-    filterPass.onclick = (e) => { e.stopPropagation(); applyFilter('pass'); };
-
-    body.append(filters, pairList);
-    section.append(header, body);
-    container.appendChild(section);
-
-    applyFilter('fail'); // default to failures
+  const instances = el('div', {className:'var-instances'}, []);
+  issue.instances.slice(0, 8).forEach(inst => {
+    instances.appendChild(el('span', {className:'var-instance-tag', textContent:inst.text || '(empty)'}));
   });
+  if (issue.instances.length > 8) {
+    instances.appendChild(el('span', {className:'var-instance-tag', textContent:'+' + (issue.instances.length - 8) + ' more'}));
+  }
+  div.appendChild(instances);
+
+  return div;
 }
 
 function renderPair(p) {
@@ -196,6 +181,77 @@ function renderPair(p) {
   }
 
   return pairEl;
+}
+
+function renderPages() {
+  const container = document.getElementById('pages');
+  pages.forEach((page, idx) => {
+    const section = el('div', {className:'page-section'}, []);
+
+    const header = el('div', {className:'page-header'}, [
+      el('div', {}, [
+        el('div', {className:'page-title', textContent:page.title || 'Untitled'}),
+        el('div', {className:'page-url', textContent:page.url})
+      ]),
+      el('div', {className:'page-meta'}, [
+        el('span', {className:'badge badge-pass', textContent:page.stats.passAA+' pass'}),
+        el('span', {className:'badge badge-fail', textContent:page.stats.failAA+' fail'})
+      ])
+    ]);
+
+    header.onclick = () => body.classList.toggle('open');
+
+    const body = el('div', {className:'page-body'}, []);
+    if (idx===0) body.classList.add('open');
+
+    // Variable Issues Section
+    if (page.variableIssues && page.variableIssues.length > 0) {
+      body.appendChild(el('div', {className:'section-title', textContent:'Design System Issues (' + page.variableIssues.length + ' variable' + (page.variableIssues.length>1?'s':'') + ' \u2192 ' + page.variableStats.affectedElements + ' element' + (page.variableStats.affectedElements>1?'s':'') + ')'}));
+      page.variableIssues.forEach(issue => {
+        body.appendChild(renderVariableIssue(issue));
+      });
+    }
+
+    // One-off filters
+    const hasOneOffs = page.violations.some(v => !v.colorVar && !v.bgVar);
+    const hasVariableAffected = page.variableStats && page.variableStats.affectedElements > 0;
+
+    const filters = el('div', {className:'filters'}, []);
+    const filterAll = el('button', {className:'filter-btn active', textContent:'All'});
+    const filterFail = el('button', {className:'filter-btn', textContent:'Failures'});
+    const filterPass = el('button', {className:'filter-btn', textContent:'Passes'});
+    filters.append(filterAll, filterFail, filterPass);
+
+    const pairList = el('div', {className:'pair-list'}, []);
+
+    function applyFilter(type) {
+      [filterAll, filterFail, filterPass].forEach(b=>b.classList.remove('active'));
+      if (type==='all') filterAll.classList.add('active');
+      if (type==='fail') filterFail.classList.add('active');
+      if (type==='pass') filterPass.classList.add('active');
+
+      pairList.innerHTML = '';
+      const items = type==='fail' ? page.violations : type==='pass' ? page.passes : page.pairs;
+      if (items.length===0) {
+        pairList.appendChild(el('div', {className:'empty', textContent:'No items'}));
+        return;
+      }
+      items.forEach(p => pairList.appendChild(renderPair(p)));
+    }
+
+    filterAll.onclick = (e) => { e.stopPropagation(); applyFilter('all'); };
+    filterFail.onclick = (e) => { e.stopPropagation(); applyFilter('fail'); };
+    filterPass.onclick = (e) => { e.stopPropagation(); applyFilter('pass'); };
+
+    if (hasVariableAffected) {
+      body.appendChild(el('div', {className:'section-title', textContent:'All Elements'}));
+    }
+    body.append(filters, pairList);
+    section.append(header, body);
+    container.appendChild(section);
+
+    applyFilter('fail'); // default to failures
+  });
 }
 
 renderSummary();

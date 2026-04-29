@@ -5,9 +5,9 @@ import { calculateContrast } from '../analyzer/contrast.js';
 import { suggestFix } from '../analyzer/suggest.js';
 import { generateReport } from '../report/generator.js';
 import { logger } from '../utils/logger.js';
-import { normalizeUrl } from '../utils/url.js';
+import { resolveTarget } from '../utils/url.js';
 import { AnalyzedPage } from '../scanner/types.js';
-import { writeFileSync } from 'fs';
+import { writeFileSync, existsSync } from 'fs';
 
 function isLargeText(fontSize: string, fontWeight: string): boolean {
   const size = parseFloat(fontSize);
@@ -24,8 +24,17 @@ export async function checkCommand(url: string, options: {
   darkMode?: boolean;
   json?: boolean;
 }) {
-  const targetUrl = normalizeUrl(url);
+  const target = resolveTarget(url);
 
+  // Pre-flight validation for local files
+  if (target.type === 'file' && target.absolutePath && !existsSync(target.absolutePath)) {
+    logger.error(`File not found: ${target.original}`);
+    logger.info(`Searched at: ${target.absolutePath}`);
+    logger.info(`If this is a website, use: https://${target.original}`);
+    process.exit(1);
+  }
+
+  const targetUrl = target.value;
   logger.info(`Scanning: ${targetUrl}`);
 
   const [width, height] = options.viewport.split('x').map(Number);
@@ -148,6 +157,20 @@ AAA: ${analyzed.stats.passAAA} | Fail: ${analyzed.stats.failAAA}
     process.exit(analyzed.violations.length > 0 ? 1 : 0);
   } catch (err: any) {
     logger.stopSpinner(`Error: ${err.message}`, false);
+
+    // Provide helpful suggestions based on the error and target type
+    const errMsg = err.message || '';
+    if (target.type === 'url' && (errMsg.includes('ERR_NAME_NOT_RESOLVED') || errMsg.includes('net::ERR_CONNECTION_REFUSED'))) {
+      logger.info(`Could not reach ${targetUrl}`);
+      const isLocalhostLike = /^(localhost|127\.\d+\.\d+\.\d+|\[::1\])/.test(url);
+      if (!url.startsWith('http://') && !url.startsWith('https://') && !isLocalhostLike) {
+        logger.info(`If this is a local file, try: ./${url} or file:///absolute/path/to/${url}`);
+      }
+      if (isLocalhostLike && errMsg.includes('ERR_CONNECTION_REFUSED')) {
+        logger.info(`Tip: Make sure your dev server is running on ${targetUrl}`);
+      }
+    }
+
     process.exit(1);
   }
 }

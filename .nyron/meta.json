@@ -1,0 +1,10 @@
+{
+  "packages": [
+    {
+      "prefix": "contrastcheck",
+      "version": "1.0.0"
+    }
+  ],
+  "createdAt": "2026-04-29T22:50:29.806Z",
+  "$schema": "./meta.schema.json"
+}

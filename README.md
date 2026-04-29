@@ -121,6 +121,43 @@ The HTML report includes:
 - Node.js 18+ or Bun
 - Playwright will download Chromium on first run
 
+## Contributing & Releasing
+
+### CI
+Every PR and push to `main` runs type-checking, tests, and a build via GitHub Actions.
+
+### Releasing a new version
+
+We use [**Nyron**](https://github.com/v0id-user/nyron) for automated changelogs and releases.
+
+1. **Bump the version and generate changelog**
+   ```bash
+   bun run bump -- --type patch   # or minor / major
+   ```
+
+2. **Commit the generated changes**
+   ```bash
+   git add . && git commit -m "chore: release v$(node -p "require('./package.json').version")"
+   ```
+
+3. **Push the release boundary tag**
+   ```bash
+   bun run push-tag
+   ```
+
+4. **GitHub Actions takes over**
+   - Publishes the package to npm automatically
+   - Creates a GitHub Release with auto-generated changelog via Nyron
+
+### Preview a release locally
+```bash
+bun run release:dry
+```
+
+### Required secrets
+Add an **`NPM_TOKEN`** secret in your repo settings (Settings → Secrets and variables → Actions):
+- Generate a [granular access token](https://www.npmjs.com/settings/tokens) on npm with **Publish** permission for `contrastcheck` and **Bypass 2FA** enabled.
+
 ## License
 
 ISC

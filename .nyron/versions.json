@@ -1,0 +1,12 @@
+{
+  "createdAt": "2026-04-29T22:50:29.807Z",
+  "packages": {
+    "contrastcheck": [
+      {
+        "prefix": "contrastcheck",
+        "version": "1.0.0"
+      }
+    ]
+  },
+  "$schema": "./versions.schema.json"
+}

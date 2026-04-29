@@ -13,29 +13,46 @@ export function generateReport(pages: AnalyzedPage[]): string {
 <style>
   :root { --bg:#0f172a; --card:#1e293b; --text:#f8fafc; --muted:#94a3b8; --pass:#22c55e; --fail:#ef4444; --warn:#eab308; --accent:#38bdf8; }
   * { box-sizing:border-box; margin:0; padding:0; }
-  body { font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.5; padding:2rem 1rem; }
-  .container { max-width:1200px; margin:0 auto; }
-  header { text-align:center; margin-bottom:2rem; }
-  h1 { font-size:2rem; margin-bottom:.5rem; }
-  .subtitle { color:var(--muted); }
-  .summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:1rem; margin-bottom:2rem; }
+  body { font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.5; }
+  .layout { display:flex; min-height:100vh; }
+  .sidebar { width:280px; background:var(--card); border-right:1px solid #334155; position:fixed; top:0; left:0; bottom:0; overflow-y:auto; z-index:10; }
+  .sidebar-header { padding:1.25rem; border-bottom:1px solid #334155; }
+  .sidebar-title { font-size:1.1rem; font-weight:700; }
+  .sidebar-subtitle { font-size:.75rem; color:var(--muted); margin-top:.25rem; }
+  .sidebar-nav { padding:.5rem 0; }
+  .nav-item { display:flex; align-items:center; gap:.75rem; padding:.625rem 1.25rem; cursor:pointer; transition:background .15s; border-left:3px solid transparent; }
+  .nav-item:hover { background:#162032; }
+  .nav-item.active { background:#162032; border-left-color:var(--accent); }
+  .nav-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .nav-dot.pass { background:var(--pass); }
+  .nav-dot.fail { background:var(--fail); }
+  .nav-info { min-width:0; }
+  .nav-page-title { font-size:.8125rem; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .nav-page-url { font-size:.6875rem; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .nav-count { font-size:.6875rem; font-weight:600; padding:.125rem .375rem; border-radius:9999px; margin-left:auto; flex-shrink:0; }
+  .nav-count.fail { background:rgba(239,68,68,.15); color:var(--fail); }
+  .nav-count.pass { background:rgba(34,197,94,.15); color:var(--pass); }
+  .main { flex:1; margin-left:280px; padding:2rem 1.5rem; max-width:900px; }
+  header { margin-bottom:2rem; }
+  h1 { font-size:1.75rem; margin-bottom:.25rem; }
+  .subtitle { color:var(--muted); font-size:.875rem; }
+  .summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:1rem; margin-bottom:2rem; }
   .stat-card { background:var(--card); border-radius:.75rem; padding:1.25rem; text-align:center; border:1px solid #334155; }
   .stat-value { font-size:1.75rem; font-weight:700; }
   .stat-label { font-size:.875rem; color:var(--muted); margin-top:.25rem; }
   .pass { color:var(--pass); }
   .fail { color:var(--fail); }
   .warn { color:var(--warn); }
-  .page-section { background:var(--card); border-radius:.75rem; border:1px solid #334155; margin-bottom:1.5rem; overflow:hidden; }
-  .page-header { padding:1rem 1.25rem; background:#162032; display:flex; justify-content:space-between; align-items:center; cursor:pointer; }
-  .page-header:hover { background:#1a2b45; }
+  .page-section { background:var(--card); border-radius:.75rem; border:1px solid #334155; margin-bottom:1.5rem; overflow:hidden; display:none; }
+  .page-section.active { display:block; }
+  .page-header { padding:1rem 1.25rem; background:#162032; display:flex; justify-content:space-between; align-items:center; }
   .page-title { font-weight:600; font-size:1rem; }
   .page-url { font-size:.75rem; color:var(--muted); }
   .page-meta { display:flex; gap:1rem; font-size:.875rem; }
   .badge { padding:.25rem .5rem; border-radius:9999px; font-size:.75rem; font-weight:600; }
   .badge-pass { background:rgba(34,197,94,.15); color:var(--pass); }
   .badge-fail { background:rgba(239,68,68,.15); color:var(--fail); }
-  .page-body { display:none; padding:1rem 1.25rem; }
-  .page-body.open { display:block; }
+  .page-body { padding:1rem 1.25rem; }
   .filters { display:flex; gap:.5rem; margin-bottom:1rem; flex-wrap:wrap; }
   .filter-btn { background:#162032; border:1px solid #334155; color:var(--text); padding:.375rem .75rem; border-radius:.375rem; cursor:pointer; font-size:.875rem; }
   .filter-btn.active { background:var(--accent); color:#0f172a; border-color:var(--accent); }
@@ -66,17 +83,38 @@ export function generateReport(pages: AnalyzedPage[]): string {
   .var-instances { margin-top:.5rem; font-size:.75rem; color:var(--muted); }
   .var-instance-tag { display:inline-block; background:#0f172a; padding:.125rem .375rem; border-radius:.25rem; margin-right:.25rem; margin-bottom:.25rem; }
   .section-title { font-size:1rem; font-weight:600; margin-bottom:.75rem; margin-top:1rem; }
+  .cross-page { background:var(--card); border-radius:.75rem; border:1px solid #334155; padding:1.25rem; margin-bottom:1.5rem; }
+  .cross-page-title { font-size:1rem; font-weight:600; margin-bottom:.75rem; }
+  .cross-page-item { display:flex; align-items:center; gap:.75rem; padding:.5rem 0; border-bottom:1px solid #334155; }
+  .cross-page-item:last-child { border-bottom:none; }
+  .cross-page-var { font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-size:.875rem; color:var(--accent); }
+  .cross-page-pages { font-size:.75rem; color:var(--muted); }
+  @media (max-width:768px) {
+    .sidebar { width:100%; position:relative; border-right:none; border-bottom:1px solid #334155; max-height:300px; }
+    .main { margin-left:0; }
+    .layout { flex-direction:column; }
+  }
   @media (max-width:640px) { .pair { grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
-<div class="container">
-  <header>
-    <h1>ContrastCheck Report</h1>
-    <p class="subtitle">Accessibility color contrast analysis</p>
-  </header>
-  <div id="summary" class="summary"></div>
-  <div id="pages"></div>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-title">ContrastCheck</div>
+      <div class="sidebar-subtitle">${pages.length} page${pages.length > 1 ? 's' : ''} scanned</div>
+    </div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+  </aside>
+  <main class="main">
+    <header>
+      <h1>ContrastCheck Report</h1>
+      <p class="subtitle">Accessibility color contrast analysis</p>
+    </header>
+    <div id="summary" class="summary"></div>
+    <div id="cross-page"></div>
+    <div id="pages"></div>
+  </main>
 </div>
 <script>
 const pages = ${dataJson};
@@ -87,6 +125,8 @@ function el(tag, props, children) {
   if (children) children.forEach(c => e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c));
   return e;
 }
+
+let activePageIndex = 0;
 
 function renderSummary() {
   const total = pages.reduce((s,p)=>s+p.stats.total,0);
@@ -113,6 +153,83 @@ function renderSummary() {
       el('div', {className:'stat-label', textContent:s.label})
     ]));
   });
+}
+
+function renderSidebar() {
+  const nav = document.getElementById('sidebar-nav');
+  pages.forEach((page, idx) => {
+    const hasFailures = page.violations.length > 0;
+    const item = el('div', {className:'nav-item '+(idx===0?'active':''), 'data-index':idx}, [
+      el('div', {className:'nav-dot '+(hasFailures?'fail':'pass')}),
+      el('div', {className:'nav-info'}, [
+        el('div', {className:'nav-page-title', textContent:page.title || 'Untitled'}),
+        el('div', {className:'nav-page-url', textContent:new URL(page.url).pathname || '/'})
+      ]),
+      el('div', {className:'nav-count '+(hasFailures?'fail':'pass'), textContent:hasFailures?page.violations.length+' fail':'pass'})
+    ]);
+    item.onclick = () => setActivePage(idx);
+    nav.appendChild(item);
+  });
+}
+
+function setActivePage(index) {
+  activePageIndex = index;
+
+  // Update sidebar
+  document.querySelectorAll('.nav-item').forEach((item, idx) => {
+    if (idx === index) item.classList.add('active');
+    else item.classList.remove('active');
+  });
+
+  // Update page sections
+  document.querySelectorAll('.page-section').forEach((section, idx) => {
+    if (idx === index) section.classList.add('active');
+    else section.classList.remove('active');
+  });
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function findCrossPageIssues() {
+  // Find variable issues that appear on multiple pages
+  const varMap = new Map();
+  pages.forEach(page => {
+    page.variableIssues.forEach(issue => {
+      const key = issue.variable + '|' + issue.property;
+      if (!varMap.has(key)) {
+        varMap.set(key, { issue, pages: [] });
+      }
+      varMap.get(key).pages.push(page.url);
+    });
+  });
+
+  const crossPage = [];
+  for (const [key, data] of varMap) {
+    if (data.pages.length > 1) {
+      crossPage.push(data);
+    }
+  }
+  return crossPage;
+}
+
+function renderCrossPage() {
+  const issues = findCrossPageIssues();
+  if (issues.length === 0) return;
+
+  const container = document.getElementById('cross-page');
+  const div = el('div', {className:'cross-page'}, [
+    el('div', {className:'cross-page-title', textContent:'Cross-Page Design System Issues'})
+  ]);
+
+  issues.forEach(data => {
+    const item = el('div', {className:'cross-page-item'}, [
+      el('div', {className:'cross-page-var', textContent:data.issue.variable}),
+      el('div', {className:'cross-page-pages', textContent:'Appears on ' + data.pages.length + ' pages'})
+    ]);
+    div.appendChild(item);
+  });
+
+  container.appendChild(div);
 }
 
 function renderVariableIssue(issue) {
@@ -186,7 +303,7 @@ function renderPair(p) {
 function renderPages() {
   const container = document.getElementById('pages');
   pages.forEach((page, idx) => {
-    const section = el('div', {className:'page-section'}, []);
+    const section = el('div', {className:'page-section '+(idx===0?'active':'')}, []);
 
     const header = el('div', {className:'page-header'}, [
       el('div', {}, [
@@ -199,10 +316,7 @@ function renderPages() {
       ])
     ]);
 
-    header.onclick = () => body.classList.toggle('open');
-
     const body = el('div', {className:'page-body'}, []);
-    if (idx===0) body.classList.add('open');
 
     // Variable Issues Section
     if (page.variableIssues && page.variableIssues.length > 0) {
@@ -213,7 +327,6 @@ function renderPages() {
     }
 
     // One-off filters
-    const hasOneOffs = page.violations.some(v => !v.colorVar && !v.bgVar);
     const hasVariableAffected = page.variableStats && page.variableStats.affectedElements > 0;
 
     const filters = el('div', {className:'filters'}, []);
@@ -239,9 +352,9 @@ function renderPages() {
       items.forEach(p => pairList.appendChild(renderPair(p)));
     }
 
-    filterAll.onclick = (e) => { e.stopPropagation(); applyFilter('all'); };
-    filterFail.onclick = (e) => { e.stopPropagation(); applyFilter('fail'); };
-    filterPass.onclick = (e) => { e.stopPropagation(); applyFilter('pass'); };
+    filterAll.onclick = () => applyFilter('all');
+    filterFail.onclick = () => applyFilter('fail');
+    filterPass.onclick = () => applyFilter('pass');
 
     if (hasVariableAffected) {
       body.appendChild(el('div', {className:'section-title', textContent:'All Elements'}));
@@ -255,6 +368,8 @@ function renderPages() {
 }
 
 renderSummary();
+renderSidebar();
+renderCrossPage();
 renderPages();
 </script>
 </body>

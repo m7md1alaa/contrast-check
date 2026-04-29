@@ -10,6 +10,9 @@ import { AnalyzedPage, AnalyzedPair, VariableIssue } from '../scanner/types';
 import { writeFileSync, existsSync } from 'fs';
 import { getFormatter } from '../formatters';
 import { watchFile, watchProject } from '../utils/watch';
+import { BrowserManager } from '../scanner/browser';
+import { discoverPages } from '../scanner/discovery';
+import inquirer from 'inquirer';
 
 function isLargeText(fontSize: string, fontWeight: string): boolean {
   const size = parseFloat(fontSize);
@@ -28,26 +31,27 @@ export interface CheckOptions {
   quiet?: boolean;
   watch?: boolean;
   all?: boolean;
+  // Multi-page options
+  depth?: number;
+  maxPages?: number;
+  yes?: boolean;
+  crawl?: boolean;
 }
 
-async function analyze(
+async function analyzePage(
   targetUrl: string,
-  options: CheckOptions
+  options: CheckOptions,
+  browser: BrowserManager
 ): Promise<AnalyzedPage> {
   const [width, height] = options.viewport.split('x').map(Number);
-
-  const spinner = options.quiet
-    ? null
-    : logger.startSpinner('Loading page and extracting colors...');
 
   const result = await scanPage({
     url: targetUrl,
     headless: options.headless,
     viewport: { width: width || 1280, height: height || 720 },
     darkMode: options.darkMode ?? false,
+    browser,
   });
-
-  if (spinner) logger.stopSpinner(`Found ${result.pairs.length} unique color pairs`);
 
   const analyzed: AnalyzedPage = {
     url: result.url,
@@ -60,10 +64,6 @@ async function analyze(
     variableStats: { uniqueIssues: 0, affectedElements: 0, oneOffIssues: 0 },
     scannedAt: result.scannedAt,
   };
-
-  const analyzeSpinner = options.quiet
-    ? null
-    : logger.startSpinner('Analyzing contrast ratios...');
 
   for (const pair of result.pairs) {
     const fgParsed = parseColor(pair.color);
@@ -110,7 +110,6 @@ async function analyze(
   const oneOffViolations: AnalyzedPair[] = [];
 
   for (const v of analyzed.violations) {
-    // Only group when at least one side is a known variable
     const hasVar = v.colorVar || v.bgVar;
     if (!hasVar) {
       oneOffViolations.push(v);
@@ -132,20 +131,9 @@ async function analyze(
     const property: 'color' | 'background-color' = first.colorVar ? 'color' : 'background-color';
     const againstVariable = first.colorVar ? first.bgVar || null : first.colorVar || null;
 
-    const currentValue =
-      property === 'color'
-        ? first.color
-        : first.background;
-    const againstValue =
-      property === 'color'
-        ? first.background
-        : first.color;
-
+    const currentValue = property === 'color' ? first.color : first.background;
+    const againstValue = property === 'color' ? first.background : first.color;
     const threshold = first.isLargeText ? 3 : 4.5;
-
-    // Try to get the raw CSS variable value from the first instance's extraction
-    // (We don't have the raw value in AnalyzedPair, so we use the computed color
-    //  as fallback and let suggestVariableFix attempt to parse it.)
     const rawForSuggestion = currentValue;
 
     const variableSuggestion = suggestVariableFix(
@@ -193,81 +181,149 @@ async function analyze(
     oneOffIssues: oneOffViolations.length,
   };
 
-  if (analyzeSpinner)
-    logger.stopSpinner(
-      `Analysis complete: ${analyzed.stats.passAA} pass, ${analyzed.stats.failAA} fail`
-    );
-
-  // Capture screenshots for violations (only in HTML mode and not quiet)
-  const isHtml = !options.format || options.format === 'html';
-  if (isHtml && analyzed.violations.length > 0) {
-    const screenshotSpinner = options.quiet
-      ? null
-      : logger.startSpinner(
-          `Capturing screenshots for ${analyzed.violations.length} violations...`
-        );
-    try {
-      const screenshotTargets = analyzed.violations.map((v) => ({
-        selector: v.selector,
-        boundingRect: v.boundingRect,
-      }));
-
-      const screenshots = await captureElementScreenshots(targetUrl, screenshotTargets, {
-        headless: options.headless,
-        viewport: { width: width || 1280, height: height || 720 },
-        darkMode: options.darkMode ?? false,
-      });
-
-      screenshots.forEach((base64, index) => {
-        analyzed.violations[index].screenshot = base64;
-      });
-
-      if (screenshotSpinner)
-        logger.stopSpinner(`Captured ${screenshots.size} screenshots`);
-    } catch {
-      if (screenshotSpinner) logger.stopSpinner('Screenshot capture skipped', false);
-    }
-  }
-
   return analyzed;
 }
 
+async function captureScreenshotsForPage(
+  page: AnalyzedPage,
+  options: CheckOptions,
+  browser: BrowserManager
+): Promise<void> {
+  if (page.violations.length === 0) return;
+
+  const [width, height] = options.viewport.split('x').map(Number);
+
+  try {
+    const screenshotTargets = page.violations.map((v) => ({
+      selector: v.selector,
+      boundingRect: v.boundingRect,
+    }));
+
+    const screenshots = await captureElementScreenshots(page.url, screenshotTargets, {
+      headless: options.headless,
+      viewport: { width: width || 1280, height: height || 720 },
+      darkMode: options.darkMode ?? false,
+      browser,
+    });
+
+    screenshots.forEach((base64, index) => {
+      page.violations[index].screenshot = base64;
+    });
+  } catch {
+    // Silently skip screenshot failures
+  }
+}
+
+async function runWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T, index: number) => Promise<void>
+): Promise<void> {
+  let nextIndex = 0;
+  async function worker() {
+    while (true) {
+      const currentIndex = nextIndex++;
+      if (currentIndex >= items.length) return;
+      await fn(items[currentIndex], currentIndex);
+    }
+  }
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
+}
+
+async function scanMultiplePages(
+  urls: string[],
+  options: CheckOptions,
+  browser: BrowserManager
+): Promise<AnalyzedPage[]> {
+  const results: AnalyzedPage[] = [];
+  const errors: { url: string; error: string }[] = [];
+  const total = urls.length;
+
+  await runWithConcurrency(urls, 3, async (url, index) => {
+    if (!options.quiet) {
+      logger.info(`Scanning page ${index + 1}/${total}: ${url}`);
+    }
+
+    try {
+      const analyzed = await analyzePage(url, options, browser);
+      results.push(analyzed);
+    } catch (err: any) {
+      errors.push({ url, error: err.message });
+      if (!options.quiet) {
+        logger.warning(`Failed to scan ${url}: ${err.message}`);
+      }
+    }
+  });
+
+  // Sort results by original URL order
+  const urlOrder = new Map(urls.map((u, i) => [u, i]));
+  results.sort((a, b) => (urlOrder.get(a.url) ?? 0) - (urlOrder.get(b.url) ?? 0));
+
+  if (errors.length > 0 && !options.quiet) {
+    logger.warning(`${errors.length} page(s) failed to scan`);
+  }
+
+  return results;
+}
+
+async function promptCrawl(urlCount: number): Promise<boolean> {
+  if (!process.stdin.isTTY) return false;
+
+  try {
+    const { confirm } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'confirm',
+        message: `Found ${urlCount} linked pages. Scan all?`,
+        default: true,
+      },
+    ]);
+    return confirm;
+  } catch {
+    return false;
+  }
+}
+
 async function output(
-  analyzed: AnalyzedPage,
+  pages: AnalyzedPage[],
   options: CheckOptions
 ): Promise<number> {
   const format = options.format || 'html';
   const formatter = getFormatter(format);
 
-  // Default to failures-only unless --all is passed
-  const page = options.all
-    ? analyzed
-    : {
-        ...analyzed,
-        pairs: analyzed.violations,
-        passes: [],
-      };
+  const totalViolations = pages.reduce((sum, p) => sum + p.violations.length, 0);
+  const totalChecked = pages.reduce((sum, p) => sum + p.stats.total, 0);
 
-  const result = formatter.format([page], { outputPath: options.output, quiet: options.quiet });
+  // Default to failures-only unless --all is passed
+  const displayPages = options.all
+    ? pages
+    : pages.map((p) => ({
+        ...p,
+        pairs: p.violations,
+        passes: [],
+      }));
+
+  const result = formatter.format(displayPages, { outputPath: options.output, quiet: options.quiet });
 
   if (format === 'html') {
     const reportSpinner = options.quiet ? null : logger.startSpinner('Generating HTML report...');
     writeFileSync(options.output, result.content);
     if (!options.quiet) {
       if (reportSpinner) logger.stopSpinner(`Report saved to ${options.output}`);
+
       logger.box(
         'Summary',
         `
-URL: ${analyzed.url}
-Elements checked: ${analyzed.stats.total}
-Pass AA: ${analyzed.stats.passAA} | Fail AA: ${analyzed.stats.failAA}
-AAA: ${analyzed.stats.passAAA} | Fail: ${analyzed.stats.failAAA}
+Pages scanned: ${pages.length}
+Elements checked: ${totalChecked}
+Pass AA: ${pages.reduce((s, p) => s + p.stats.passAA, 0)} | Fail AA: ${pages.reduce((s, p) => s + p.stats.failAA, 0)}
+AAA: ${pages.reduce((s, p) => s + p.stats.passAAA, 0)} | Fail: ${pages.reduce((s, p) => s + p.stats.failAAA, 0)}
       `.trim()
       );
 
-      if (analyzed.violations.length > 0) {
+      if (totalViolations > 0) {
         logger.warning(
-          `${analyzed.violations.length} contrast violations found. Open ${options.output} to review.`
+          `${totalViolations} contrast violation${totalViolations > 1 ? 's' : ''} found. Open ${options.output} to review.`
         );
       } else {
         logger.success('No contrast violations found!');
@@ -298,21 +354,120 @@ export async function checkCommand(url: string, options: CheckOptions) {
     options.format = 'json';
   }
 
+  // Parse numeric options from CLI strings
+  if (options.depth !== undefined) {
+    options.depth = parseInt(String(options.depth), 10);
+    if (isNaN(options.depth) || options.depth < 1) options.depth = 1;
+  }
+  if (options.maxPages !== undefined) {
+    options.maxPages = parseInt(String(options.maxPages), 10);
+    if (isNaN(options.maxPages) || options.maxPages < 1) options.maxPages = 10;
+  }
+
+  // Disable crawl when watching
+  const enableCrawl = !options.watch && target.type === 'url';
+
   const run = async () => {
     if (!options.quiet) {
       logger.info(`Scanning: ${targetUrl}`);
     }
 
     try {
-      const analyzed = await analyze(targetUrl, options);
-      const exitCode = await output(analyzed, options);
+      const [width, height] = options.viewport.split('x').map(Number);
+      const browser = new BrowserManager();
+      await browser.launch(
+        options.headless ?? true,
+        { width: width || 1280, height: height || 720 }
+      );
 
-      if (!options.watch) {
-        process.exit(exitCode);
-      }
+      let pagesToScan: string[] = [targetUrl];
 
-      if (!options.quiet) {
-        logger.info('Waiting for changes... (Ctrl+C to stop)');
+      try {
+        // ── Discover linked pages ──
+        if (enableCrawl) {
+          const discoverySpinner = options.quiet
+            ? null
+            : logger.startSpinner('Discovering linked pages...');
+
+          let discoverPage;
+          try {
+            discoverPage = await browser.newPage();
+            const discovered = await discoverPages(discoverPage, {
+              baseUrl: targetUrl,
+              maxPages: options.maxPages ?? 10,
+              depth: options.depth ?? 1,
+            });
+
+            if (discoverySpinner) logger.stopSpinner(`Found ${discovered.length} page(s)`);
+
+            if (discovered.length > 1) {
+              const extraPages = discovered.filter((u) => u !== targetUrl);
+
+              if (extraPages.length > 0) {
+                let shouldCrawl = options.crawl || options.yes;
+
+                if (!shouldCrawl && !options.quiet && process.stdin.isTTY) {
+                  shouldCrawl = await promptCrawl(discovered.length);
+                }
+
+                if (shouldCrawl) {
+                  pagesToScan = discovered;
+                  if (!options.quiet) {
+                    logger.info(`Scanning ${pagesToScan.length} pages`);
+                  }
+                } else {
+                  if (!options.quiet) {
+                    logger.info('Scanning single page only');
+                  }
+                }
+              }
+            }
+          } catch (err: any) {
+            if (discoverySpinner) logger.stopSpinner('Discovery failed, scanning single page', false);
+            if (!options.quiet) {
+              logger.warning(`Could not discover links: ${err.message}`);
+            }
+          }
+        }
+
+        // ── Scan all pages ──
+        const pages = await scanMultiplePages(pagesToScan, options, browser);
+
+        // ── Capture screenshots ──
+        const pagesWithViolations = pages.filter((p) => p.violations.length > 0);
+        if (pagesWithViolations.length > 0) {
+          const screenshotSpinner = options.quiet
+            ? null
+            : logger.startSpinner(
+                `Capturing screenshots for violations across ${pagesWithViolations.length} page(s)...`
+              );
+
+          for (const page of pagesWithViolations) {
+            await captureScreenshotsForPage(page, options, browser);
+          }
+
+          if (screenshotSpinner) {
+            const totalViolations = pagesWithViolations.reduce((s, p) => s + p.violations.length, 0);
+            logger.stopSpinner(`Captured screenshots for ${totalViolations} violation(s)`);
+          }
+        }
+
+        // ── Output ──
+        const exitCode = await output(pages, options);
+
+        if (!options.watch) {
+          await browser.close();
+          process.exit(exitCode);
+        }
+
+        await browser.close();
+
+        if (!options.quiet) {
+          logger.info('Waiting for changes... (Ctrl+C to stop)');
+        }
+      } catch (err: any) {
+        await browser.close();
+        throw err;
       }
     } catch (err: any) {
       if (!options.quiet) {
@@ -332,7 +487,6 @@ export async function checkCommand(url: string, options: CheckOptions) {
           }
         }
       } else {
-        // In quiet mode, print minimal error to stderr so agent sees it
         console.error(`ERROR: ${err.message}`);
       }
 

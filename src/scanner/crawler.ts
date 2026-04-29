@@ -7,14 +7,20 @@ export interface ScanOptions {
   headless?: boolean;
   viewport?: { width: number; height: number };
   darkMode?: boolean;
+  browser?: BrowserManager;
 }
 
 export async function scanPage(options: ScanOptions): Promise<PageResult> {
-  const browser = new BrowserManager();
-  await browser.launch(options.headless ?? true, options.viewport ?? { width: 1280, height: 720 });
+  const ownBrowser = !options.browser;
+  const browser = options.browser || new BrowserManager();
 
+  if (ownBrowser) {
+    await browser.launch(options.headless ?? true, options.viewport ?? { width: 1280, height: 720 });
+  }
+
+  let page;
   try {
-    const page = await browser.newPage();
+    page = await browser.newPage();
 
     if (options.darkMode) {
       await page.emulateMedia({ colorScheme: 'dark' });
@@ -37,6 +43,11 @@ export async function scanPage(options: ScanOptions): Promise<PageResult> {
       scannedAt: new Date().toISOString(),
     };
   } finally {
-    await browser.close();
+    if (page) {
+      await page.close().catch(() => {});
+    }
+    if (ownBrowser) {
+      await browser.close();
+    }
   }
 }

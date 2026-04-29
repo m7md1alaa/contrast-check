@@ -10,22 +10,30 @@ export interface ScreenshotTarget {
   };
 }
 
+export interface ScreenshotOptions {
+  headless?: boolean;
+  viewport?: { width: number; height: number };
+  darkMode?: boolean;
+  browser?: BrowserManager;
+}
+
 export async function captureElementScreenshots(
   url: string,
   targets: ScreenshotTarget[],
-  options: {
-    headless?: boolean;
-    viewport?: { width: number; height: number };
-    darkMode?: boolean;
-  }
+  options: ScreenshotOptions
 ): Promise<Map<number, string>> {
-  const browser = new BrowserManager();
-  await browser.launch(options.headless ?? true, options.viewport ?? { width: 1280, height: 720 });
+  const ownBrowser = !options.browser;
+  const browser = options.browser || new BrowserManager();
+
+  if (ownBrowser) {
+    await browser.launch(options.headless ?? true, options.viewport ?? { width: 1280, height: 720 });
+  }
 
   const results = new Map<number, string>();
+  let page;
 
   try {
-    const page = await browser.newPage();
+    page = await browser.newPage();
 
     if (options.darkMode) {
       await page.emulateMedia({ colorScheme: 'dark' });
@@ -63,7 +71,12 @@ export async function captureElementScreenshots(
       }
     }
   } finally {
-    await browser.close();
+    if (page) {
+      await page.close().catch(() => {});
+    }
+    if (ownBrowser) {
+      await browser.close();
+    }
   }
 
   return results;

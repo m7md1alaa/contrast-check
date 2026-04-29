@@ -27,6 +27,7 @@ export interface CheckOptions {
   json?: boolean;
   quiet?: boolean;
   watch?: boolean;
+  all?: boolean;
 }
 
 async function analyze(
@@ -147,7 +148,17 @@ async function output(
 ): Promise<number> {
   const format = options.format || 'html';
   const formatter = getFormatter(format);
-  const result = formatter.format([analyzed], { outputPath: options.output, quiet: options.quiet });
+
+  // Default to failures-only unless --all is passed
+  const page = options.all
+    ? analyzed
+    : {
+        ...analyzed,
+        pairs: analyzed.violations,
+        passes: [],
+      };
+
+  const result = formatter.format([page], { outputPath: options.output, quiet: options.quiet });
 
   if (format === 'html') {
     const reportSpinner = options.quiet ? null : logger.startSpinner('Generating HTML report...');

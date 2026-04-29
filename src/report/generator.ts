@@ -80,7 +80,7 @@ function el(tag, props, children) {
 }
 
 function renderSummary() {
-  const total = pages.reduce((s,p)=>s+p.pairs.length,0);
+  const total = pages.reduce((s,p)=>s+p.stats.total,0);
   const passAA = pages.reduce((s,p)=>s+p.stats.passAA,0);
   const failAA = pages.reduce((s,p)=>s+p.stats.failAA,0);
   const violations = pages.reduce((s,p)=>s+p.violations.length,0);

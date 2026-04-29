@@ -20,6 +20,7 @@ program
   .option('-f, --format <type>', 'Output format: html, json, compact', 'html')
   .option('--json', 'Output JSON to stdout instead of HTML report')
   .option('-q, --quiet', 'Minimal output (no spinners, progress bars)')
+  .option('--all', 'Include passing elements in output (by default only failures are shown)')
   .option('--watch', 'Watch for file changes and re-check automatically')
   .action(checkCommand);
 

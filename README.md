@@ -51,6 +51,7 @@ contrastcheck ../dist/index.html
 | `-f, --format <type>` | `html` | Output format: `html`, `json`, `compact` |
 | `--json` | false | Output JSON to stdout instead of HTML report |
 | `-q, --quiet` | false | Minimal output (no spinners, progress bars) |
+| `--all` | false | Include passing elements in output (default shows failures only) |
 | `--watch` | false | Watch for file changes and re-check automatically |
 
 ### Examples
@@ -62,10 +63,13 @@ contrastcheck https://example.com -o report.html
 # Check in dark mode with mobile viewport
 contrastcheck https://example.com --dark-mode -w 390x844
 
-# Output JSON to stdout
+# Output JSON to stdout (failures only by default)
 contrastcheck https://example.com --json
 # or
 contrastcheck https://example.com -f json
+
+# Include all results (passes + failures)
+contrastcheck https://example.com -f json --all
 
 # Watch a local file for changes
 contrastcheck ./index.html --watch
@@ -98,8 +102,10 @@ Guides you through URL, viewport, dark mode, headless, and output options.
 
 ## Output formats
 
-- **HTML** (default): Full report with violation list, screenshots, and fix suggestions
-- **JSON**: Machine-readable output with all analyzed pairs and metadata
+By default, all formats show **only failures** to keep output focused. Use `--all` to include passing elements.
+
+- **HTML** (default): Report with violation list, screenshots, and fix suggestions
+- **JSON**: Machine-readable output with analyzed pairs and metadata
 - **Compact**: One-line summary for CI/logs
 
 ## Report

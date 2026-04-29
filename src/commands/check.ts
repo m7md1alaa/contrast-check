@@ -1,4 +1,5 @@
 import { scanPage } from '../scanner/crawler.js';
+import { captureElementScreenshots } from '../scanner/screenshot.js';
 import { parseColor, rgbToHex } from '../analyzer/color.js';
 import { calculateContrast } from '../analyzer/contrast.js';
 import { suggestFix } from '../analyzer/suggest.js';
@@ -94,6 +95,31 @@ export async function checkCommand(url: string, options: {
     }
 
     logger.stopSpinner(`Analysis complete: ${analyzed.stats.passAA} pass, ${analyzed.stats.failAA} fail`);
+
+    // Capture screenshots for violations
+    if (!options.json && analyzed.violations.length > 0) {
+      const screenshotSpinner = logger.startSpinner(`Capturing screenshots for ${analyzed.violations.length} violations...`);
+      try {
+        const screenshotTargets = analyzed.violations.map((v) => ({
+          selector: v.selector,
+          boundingRect: v.boundingRect,
+        }));
+
+        const screenshots = await captureElementScreenshots(targetUrl, screenshotTargets, {
+          headless: options.headless,
+          viewport: { width: width || 1280, height: height || 720 },
+          darkMode: options.darkMode ?? false,
+        });
+
+        screenshots.forEach((base64, index) => {
+          analyzed.violations[index].screenshot = base64;
+        });
+
+        logger.stopSpinner(`Captured ${screenshots.size} screenshots`);
+      } catch {
+        logger.stopSpinner('Screenshot capture skipped', false);
+      }
+    }
 
     if (options.json) {
       console.log(JSON.stringify(analyzed, null, 2));

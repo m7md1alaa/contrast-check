@@ -31,8 +31,9 @@ export interface AnalyzedPair extends ElementColorPair {
   aaa: boolean;
   aaLarge: boolean;
   isLargeText: boolean;
-  suggestedFix: { color: any; hex: string; ratio: number } | null;
   issueType: 'normal' | 'large';
+  suggestedFix: { color: any; hex: string; ratio: number } | null;
+  screenshot?: string;
 }
 
 export interface AnalyzedPage {

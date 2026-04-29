@@ -53,6 +53,9 @@ export function generateReport(pages: AnalyzedPage[]): string {
   .ratio-value { font-size:1.25rem; font-weight:700; }
   .ratio-grade { font-size:.75rem; color:var(--muted); }
   .suggestion { font-size:.75rem; margin-top:.5rem; padding:.5rem; background:rgba(56,189,248,.08); border-radius:.25rem; }
+  .screenshot { margin-top:.75rem; border-radius:.375rem; border:1px solid #334155; overflow:hidden; max-width:320px; }
+  .screenshot img { display:block; width:100%; height:auto; }
+  .screenshot-label { font-size:.625rem; color:var(--muted); padding:.25rem .5rem; background:#0f172a; }
   .empty { text-align:center; padding:2rem; color:var(--muted); }
   @media (max-width:640px) { .pair { grid-template-columns:1fr; } }
 </style>
@@ -183,6 +186,13 @@ function renderPair(p) {
 
   if (isFail && p.suggestedFix) {
     info.appendChild(el('div', {className:'suggestion', textContent:\`Suggested: \${p.suggestedFix.hex} (\${p.suggestedFix.ratio}:1)\`}));
+  }
+
+  if (p.screenshot) {
+    info.appendChild(el('div', {className:'screenshot'}, [
+      el('img', {src:p.screenshot, alt:'Element screenshot'}),
+      el('div', {className:'screenshot-label', textContent:p.selector})
+    ]));
   }
 
   return pairEl;

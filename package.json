@@ -1,6 +1,6 @@
 {
   "name": "contrastcheck",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Check color contrast accessibility on websites",
   "main": "dist/index.js",
   "type": "module",
@@ -64,7 +64,8 @@
     "handlebars": "^4.7.9",
     "inquirer": "^13.4.2",
     "ora": "^9.4.0",
-    "playwright": "^1.59.1"
+    "playwright": "^1.59.1",
+    "zod": "^4.4.0"
   },
   "devDependencies": {
     "@nyron/cli": "^0.8.1",

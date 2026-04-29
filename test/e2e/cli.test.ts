@@ -310,8 +310,8 @@ describe('CLI E2E', () => {
     });
   });
 
-  describe('option parsing edge cases', () => {
-    test('--depth 0 clamps to 1', async () => {
+  describe('input validation', () => {
+    test('--depth 0 exits with validation error', async () => {
       const fixturesDir = join(process.cwd(), 'test', 'fixtures');
       const result = await runCli([
         join(fixturesDir, 'linked-a.html'),
@@ -324,11 +324,11 @@ describe('CLI E2E', () => {
         '--quiet',
       ]);
 
-      // Should not crash; depth 0 treated as 1
-      expect(result.exitCode).toBe(0);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('Depth must be a positive integer');
     });
 
-    test('--max-pages 0 clamps to 10', async () => {
+    test('--max-pages 0 exits with validation error', async () => {
       const fixturesDir = join(process.cwd(), 'test', 'fixtures');
       const result = await runCli([
         join(fixturesDir, 'linked-a.html'),
@@ -341,8 +341,32 @@ describe('CLI E2E', () => {
         '--quiet',
       ]);
 
-      // Should not crash; max-pages 0 treated as 10
-      expect(result.exitCode).toBe(0);
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('Max pages must be a positive integer');
+    });
+
+    test('--format xml exits with validation error', async () => {
+      const fixturePath = join(process.cwd(), 'test', 'fixtures', 'single-page.html');
+      const result = await runCli([fixturePath, '--format', 'xml', '--quiet']);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('Format must be one of: html, json, compact');
+    });
+
+    test('--viewport bad exits with validation error', async () => {
+      const fixturePath = join(process.cwd(), 'test', 'fixtures', 'single-page.html');
+      const result = await runCli([fixturePath, '--viewport', 'bad', '--quiet']);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('Viewport must be in WxH format');
+    });
+
+    test('--depth abc exits with validation error', async () => {
+      const fixturePath = join(process.cwd(), 'test', 'fixtures', 'single-page.html');
+      const result = await runCli([fixturePath, '--depth', 'abc', '--quiet']);
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain('Invalid input');
     });
   });
 

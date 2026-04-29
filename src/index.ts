@@ -1,6 +1,8 @@
 import { Command } from 'commander';
+import { z } from 'zod';
 import { checkCommand } from './commands/check';
 import { wizardCommand } from './commands/wizard';
+import { checkOptionsSchema, urlArgumentSchema } from './validation';
 
 const program = new Command();
 
@@ -27,7 +29,21 @@ program
   .option('--depth <number>', 'How many levels of links to follow (default: 1)', '1')
   .option('--max-pages <number>', 'Maximum number of pages to scan (default: 10)', '10')
   .option('-y, --yes', 'Skip confirmation prompt and scan all discovered pages')
-  .action(checkCommand);
+  .action(async (url: string, options: any) => {
+    try {
+      const validatedUrl = urlArgumentSchema.parse(url);
+      const validatedOptions = checkOptionsSchema.parse(options);
+      await checkCommand(validatedUrl, validatedOptions);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        for (const issue of err.issues) {
+          console.error(`error: ${issue.message}`);
+        }
+        process.exit(1);
+      }
+      throw err;
+    }
+  });
 
 program
   .command('wizard')

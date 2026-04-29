@@ -1,6 +1,7 @@
 import inquirer from 'inquirer';
 import { checkCommand } from './check';
 import { logger } from '../utils/logger';
+import { checkOptionsSchema } from '../validation';
 
 export async function wizardCommand() {
   logger.box('ContrastCheck Wizard', 'Answer a few questions to configure your scan.');
@@ -44,11 +45,13 @@ export async function wizardCommand() {
     },
   ]);
 
-  await checkCommand(answers.url, {
+  const options = checkOptionsSchema.parse({
     output: answers.output,
     headless: answers.headless,
     viewport: answers.viewport,
     darkMode: answers.darkMode,
     json: false,
   });
+
+  await checkCommand(answers.url, options);
 }

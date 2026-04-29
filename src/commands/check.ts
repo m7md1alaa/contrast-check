@@ -12,6 +12,7 @@ import { getFormatter } from '../formatters';
 import { watchFile, watchProject } from '../utils/watch';
 import { BrowserManager } from '../scanner/browser';
 import { discoverPages } from '../scanner/discovery';
+import { ValidatedCheckOptions } from '../validation';
 import inquirer from 'inquirer';
 
 function isLargeText(fontSize: string, fontWeight: string): boolean {
@@ -21,22 +22,7 @@ function isLargeText(fontSize: string, fontWeight: string): boolean {
   return size >= 24 || (size >= 18.66 && weight >= 700);
 }
 
-export interface CheckOptions {
-  output: string;
-  headless: boolean;
-  viewport: string;
-  darkMode?: boolean;
-  format?: string;
-  json?: boolean;
-  quiet?: boolean;
-  watch?: boolean;
-  all?: boolean;
-  // Multi-page options
-  depth?: number;
-  maxPages?: number;
-  yes?: boolean;
-  crawl?: boolean;
-}
+export type CheckOptions = ValidatedCheckOptions;
 
 async function analyzePage(
   targetUrl: string,
@@ -350,18 +336,8 @@ export async function checkCommand(url: string, options: CheckOptions) {
   const targetUrl = target.value;
 
   // Legacy --json flag maps to json format
-  if (options.json && (!options.format || options.format === 'html')) {
+  if (options.json && options.format === 'html') {
     options.format = 'json';
-  }
-
-  // Parse numeric options from CLI strings
-  if (options.depth !== undefined) {
-    options.depth = parseInt(String(options.depth), 10);
-    if (isNaN(options.depth) || options.depth < 1) options.depth = 1;
-  }
-  if (options.maxPages !== undefined) {
-    options.maxPages = parseInt(String(options.maxPages), 10);
-    if (isNaN(options.maxPages) || options.maxPages < 1) options.maxPages = 10;
   }
 
   // Disable crawl when watching

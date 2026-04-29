@@ -12,7 +12,9 @@
     "dev": "bun src/index.ts",
     "check": "bun bin/contrastcheck.js",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "test:all": "vitest run && vitest run --config vitest.e2e.config.ts"
   },
   "keywords": ["accessibility", "a11y", "contrast", "wcag", "color"],
   "author": "",

@@ -15,7 +15,7 @@ describe('captureElementScreenshots integration', () => {
   });
 
   afterAll(async () => {
-    await browser.close();
+    if (browser) await browser.close();
   });
 
   afterEach(async () => {

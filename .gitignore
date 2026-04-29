@@ -36,3 +36,6 @@ playwright/.cache/
 # Test files
 test-page.html
 .env
+
+# Allow test fixtures
+!test/fixtures/*.html

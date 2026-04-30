@@ -2,9 +2,10 @@
   "packages": [
     {
       "prefix": "contrastcheck",
-      "version": "1.1.0"
+      "version": "1.2.0"
     }
   ],
   "createdAt": "2026-04-29T22:50:29.806Z",
+  "latestTag": "nyron-release@2026-04-29@02-32-42.063",
   "$schema": "./meta.schema.json"
 }

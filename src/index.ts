@@ -24,6 +24,7 @@ program
   .option('-q, --quiet', 'Minimal output (no spinners, progress bars)')
   .option('--all', 'Include passing elements in output (by default only failures are shown)')
   .option('--watch', 'Watch for file changes and re-check automatically')
+  .option('--threshold <level>', 'Violation threshold: critical, aa (default), strict', 'aa')
   // Multi-page options
   .option('--crawl', 'Automatically discover and scan linked pages')
   .option('--depth <number>', 'How many levels of links to follow (default: 1)', '1')

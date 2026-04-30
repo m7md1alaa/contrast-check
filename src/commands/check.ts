@@ -3,6 +3,7 @@ import { captureElementScreenshots } from '../scanner/screenshot';
 import { parseColor, rgbToHex } from '../analyzer/color';
 import { calculateContrast } from '../analyzer/contrast';
 import { suggestFix, suggestVariableFix } from '../analyzer/suggest';
+import { getSeverity, calculateHealthScore } from '../analyzer/severity';
 import { generateReport } from '../report/generator';
 import { logger } from '../utils/logger';
 import { resolveTarget } from '../utils/url';
@@ -48,6 +49,7 @@ async function analyzePage(
     variableIssues: [],
     stats: { total: 0, passAA: 0, passAAA: 0, failAA: 0, failAAA: 0 },
     variableStats: { uniqueIssues: 0, affectedElements: 0, oneOffIssues: 0 },
+    healthScore: 0,
     scannedAt: result.scannedAt,
   };
 
@@ -63,6 +65,7 @@ async function analyzePage(
     const issueType = isLarge ? 'large' : 'normal';
     const threshold = isLarge ? 3 : 4.5;
     const suggestedFix = !contrast.aa ? suggestFix(fgParsed, bgParsed, threshold) : null;
+    const severity = getSeverity(contrast.ratio, isLarge);
 
     const analyzedPair = {
       ...pair,
@@ -74,6 +77,7 @@ async function analyzePage(
       aaLarge: contrast.aaLarge,
       isLargeText: isLarge,
       issueType: issueType as 'normal' | 'large',
+      severity,
       suggestedFix,
     };
 
@@ -142,6 +146,7 @@ async function analyzePage(
       contrastRatio: first.contrastRatio,
       aa: first.aa,
       aaa: first.aaa,
+      severity: getSeverity(first.contrastRatio, first.isLargeText),
       affectedCount: group.length,
       suggestedFix: variableSuggestion
         ? {
@@ -166,6 +171,7 @@ async function analyzePage(
     affectedElements: variableIssues.reduce((s, v) => s + v.affectedCount, 0),
     oneOffIssues: oneOffViolations.length,
   };
+  analyzed.healthScore = calculateHealthScore(analyzed.pairs);
 
   return analyzed;
 }
@@ -289,7 +295,7 @@ async function output(
         passes: [],
       }));
 
-  const result = formatter.format(displayPages, { outputPath: options.output, quiet: options.quiet });
+  const result = formatter.format(displayPages, { outputPath: options.output, quiet: options.quiet, threshold: options.threshold });
 
   if (format === 'html') {
     const reportSpinner = options.quiet ? null : logger.startSpinner('Generating HTML report...');
@@ -297,11 +303,16 @@ async function output(
     if (!options.quiet) {
       if (reportSpinner) logger.stopSpinner(`Report saved to ${options.output}`);
 
+      const avgHealthScore = pages.length > 0
+        ? Math.round(pages.reduce((s, p) => s + p.healthScore, 0) / pages.length)
+        : 0;
+
       logger.box(
         'Summary',
         `
 Pages scanned: ${pages.length}
 Elements checked: ${totalChecked}
+Health Score: ${avgHealthScore}/100
 Pass AA: ${pages.reduce((s, p) => s + p.stats.passAA, 0)} | Fail AA: ${pages.reduce((s, p) => s + p.stats.failAA, 0)}
 AAA: ${pages.reduce((s, p) => s + p.stats.passAAA, 0)} | Fail: ${pages.reduce((s, p) => s + p.stats.failAAA, 0)}
       `.trim()
@@ -309,8 +320,9 @@ AAA: ${pages.reduce((s, p) => s + p.stats.passAAA, 0)} | Fail: ${pages.reduce((s
 
       if (totalViolations > 0) {
         logger.warning(
-          `${totalViolations} contrast violation${totalViolations > 1 ? 's' : ''} found. Open ${options.output} to review.`
+          `${totalViolations} contrast issue${totalViolations > 1 ? 's' : ''} found. Open ${options.output} to review.`
         );
+        logger.info('Tip: Even major brands trade strict contrast for visual identity. Aim for 100% AA compliance.');
       } else {
         logger.success('No contrast violations found!');
       }

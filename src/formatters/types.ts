@@ -5,6 +5,7 @@ export type OutputFormat = 'html' | 'json' | 'compact';
 export interface FormatterOptions {
   outputPath?: string;
   quiet?: boolean;
+  threshold?: 'critical' | 'aa' | 'strict';
 }
 
 export interface FormatterResult {

@@ -34,6 +34,7 @@ export interface AnalyzedPair extends ElementColorPair {
   aaLarge: boolean;
   isLargeText: boolean;
   issueType: 'normal' | 'large';
+  severity: 'critical' | 'warning' | 'fine' | 'excellent';
   suggestedFix: {
     color: any;
     hex: string;
@@ -61,6 +62,7 @@ export interface VariableIssue {
   contrastRatio: number;
   aa: boolean;
   aaa: boolean;
+  severity: 'critical' | 'warning' | 'fine' | 'excellent';
   affectedCount: number;
   suggestedFix: {
     variable: string;
@@ -91,5 +93,6 @@ export interface AnalyzedPage {
     affectedElements: number;
     oneOffIssues: number;
   };
+  healthScore: number;
   scannedAt: string;
 }

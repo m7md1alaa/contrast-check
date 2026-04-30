@@ -1,6 +1,7 @@
 import { AnalyzedPage } from '../scanner/types';
+import { shouldCountAsViolation } from '../analyzer/severity';
 
-export function generateReport(pages: AnalyzedPage[]): string {
+export function generateReport(pages: AnalyzedPage[], threshold: 'critical' | 'aa' | 'strict' = 'aa'): string {
   // Inline the template - we'll build it as a string to avoid fs dependencies at runtime
   const dataJson = JSON.stringify(pages, null, 2).replace(/</g, '\\u003c');
 
@@ -11,7 +12,7 @@ export function generateReport(pages: AnalyzedPage[]): string {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ContrastCheck Report</title>
 <style>
-  :root { --bg:#0f172a; --card:#1e293b; --text:#f8fafc; --muted:#94a3b8; --pass:#22c55e; --fail:#ef4444; --warn:#eab308; --accent:#38bdf8; }
+  :root { --bg:#0f172a; --card:#1e293b; --text:#f8fafc; --muted:#94a3b8; --pass:#22c55e; --fail:#ef4444; --warn:#eab308; --accent:#38bdf8; --critical:#ef4444; --fine:#22c55e; --excellent:#3b82f6; }
   * { box-sizing:border-box; margin:0; padding:0; }
   body { font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.5; }
   .layout { display:flex; min-height:100vh; }
@@ -43,6 +44,13 @@ export function generateReport(pages: AnalyzedPage[]): string {
   .pass { color:var(--pass); }
   .fail { color:var(--fail); }
   .warn { color:var(--warn); }
+  .critical { color:var(--critical); }
+  .fine { color:var(--fine); }
+  .excellent { color:var(--excellent); }
+  .severity-critical { border-left-color:var(--critical) !important; }
+  .severity-warning { border-left-color:var(--warn) !important; }
+  .severity-fine { border-left-color:var(--fine) !important; }
+  .severity-excellent { border-left-color:var(--excellent) !important; }
   .page-section { background:var(--card); border-radius:.75rem; border:1px solid #334155; margin-bottom:1.5rem; overflow:hidden; display:none; }
   .page-section.active { display:block; }
   .page-header { padding:1rem 1.25rem; background:#162032; display:flex; justify-content:space-between; align-items:center; }
@@ -89,6 +97,23 @@ export function generateReport(pages: AnalyzedPage[]): string {
   .cross-page-item:last-child { border-bottom:none; }
   .cross-page-var { font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-size:.875rem; color:var(--accent); }
   .cross-page-pages { font-size:.75rem; color:var(--muted); }
+  .designer-note { background:rgba(56,189,248,.1); border:1px solid rgba(56,189,248,.25); border-radius:.75rem; padding:1rem 1.25rem; margin-bottom:1.5rem; display:flex; align-items:flex-start; gap:.75rem; }
+  .designer-note-icon { font-size:1.25rem; flex-shrink:0; }
+  .designer-note-text { font-size:.875rem; color:var(--muted); line-height:1.5; }
+  .designer-note-text strong { color:var(--text); }
+  .health-score { display:flex; align-items:center; gap:1rem; background:var(--card); border-radius:.75rem; padding:1.25rem; border:1px solid #334155; margin-bottom:1.5rem; }
+  .health-score-ring { width:64px; height:64px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.25rem; font-weight:700; flex-shrink:0; border:4px solid var(--pass); }
+  .health-score-ring.low { border-color:var(--fail); color:var(--fail); }
+  .health-score-ring.medium { border-color:var(--warn); color:var(--warn); }
+  .health-score-ring.high { border-color:var(--pass); color:var(--pass); }
+  .health-score-info { min-width:0; }
+  .health-score-title { font-size:1rem; font-weight:600; }
+  .health-score-desc { font-size:.875rem; color:var(--muted); margin-top:.25rem; }
+  .severity-badge { display:inline-block; padding:.125rem .375rem; border-radius:.25rem; font-size:.6875rem; font-weight:600; text-transform:uppercase; margin-left:.5rem; }
+  .severity-badge.critical { background:rgba(239,68,68,.15); color:var(--critical); }
+  .severity-badge.warning { background:rgba(234,179,8,.15); color:var(--warn); }
+  .severity-badge.fine { background:rgba(34,197,94,.15); color:var(--fine); }
+  .severity-badge.excellent { background:rgba(59,130,246,.15); color:var(--excellent); }
   @media (max-width:768px) {
     .sidebar { width:100%; position:relative; border-right:none; border-bottom:1px solid #334155; max-height:300px; }
     .main { margin-left:0; }
@@ -134,13 +159,14 @@ function renderSummary() {
   const failAA = pages.reduce((s,p)=>s+p.stats.failAA,0);
   const violations = pages.reduce((s,p)=>s+p.violations.length,0);
   const varIssues = pages.reduce((s,p)=>s+p.variableIssues.length,0);
+  const avgHealth = pages.length > 0 ? Math.round(pages.reduce((s,p)=>s+p.healthScore,0)/pages.length) : 0;
 
   const stats = [
     { label:'Pages', value:pages.length },
     { label:'Elements', value:total },
+    { label:'Health Score', value:avgHealth+'%', cls: avgHealth >= 80 ? 'pass' : avgHealth >= 50 ? 'warn' : 'fail' },
     { label:'Pass AA', value:passAA, cls:'pass' },
     { label:'Fail AA', value:failAA, cls:'fail' },
-    { label:'Violations', value:violations, cls:'fail' },
   ];
   if (varIssues > 0) {
     stats.push({ label:'Var Issues', value:varIssues, cls:'warn' });
@@ -232,12 +258,23 @@ function renderCrossPage() {
   container.appendChild(div);
 }
 
+function renderDesignerNote() {
+  const container = document.getElementById('cross-page');
+  const note = el('div', {className:'designer-note'}, [
+    el('div', {className:'designer-note-icon', textContent:'💡'}),
+    el('div', {className:'designer-note-text', innerHTML:'<strong>Designer Note:</strong> Even major brands intentionally trade off strict AAA contrast for visual identity. Aim for 100% AA compliance — that is the real-world standard. AAA is a bonus, not a requirement.'})
+  ]);
+  container.parentNode.insertBefore(note, container);
+}
+
 function renderVariableIssue(issue) {
   const div = el('div', {className:'var-issue'}, []);
 
   const header = el('div', {className:'var-issue-header'}, [
     el('div', {}, [
-      el('div', {className:'var-name', textContent:issue.variable + ' (' + issue.property + ')'}),
+      el('div', {className:'var-name', textContent:issue.variable + ' (' + issue.property + ')' + ' '}, [
+        el('span', {className:'severity-badge ' + issue.severity, textContent:issue.severity})
+      ]),
       el('div', {className:'var-detail', textContent:issue.currentHex + ' on ' + (issue.againstVariable || issue.againstHex) + ' = ' + issue.contrastRatio + ':1'})
     ]),
     el('div', {className:'var-count', textContent:issue.affectedCount + ' element' + (issue.affectedCount>1?'s':'')})
@@ -261,8 +298,8 @@ function renderVariableIssue(issue) {
 }
 
 function renderPair(p) {
-  const isFail = !p.aa;
-  const pairEl = el('div', {className:'pair '+(isFail?'fail':'pass')}, []);
+  const severity = p.severity || (p.aa ? (p.aaa ? 'excellent' : 'fine') : 'warning');
+  const pairEl = el('div', {className:'pair severity-' + severity}, []);
 
   const swatches = el('div', {className:'swatches'}, []);
   if (p.fgParsed) {
@@ -275,18 +312,20 @@ function renderPair(p) {
   }
 
   const info = el('div', {className:'pair-info'}, [
-    el('div', {className:'pair-text', textContent:p.text || '(empty)'}),
+    el('div', {className:'pair-text', textContent:p.text || '(empty)'}, [
+      el('span', {className:'severity-badge ' + severity, textContent:severity})
+    ]),
     el('div', {className:'pair-meta', textContent:\`\${p.tag} \u00B7 \${p.fontSize} \u00B7 \${p.fontWeight}\`})
   ]);
 
   const ratio = el('div', {className:'pair-ratio'}, [
-    el('div', {className:'ratio-value '+(isFail?'fail':'pass'), textContent:p.contrastRatio+':1'}),
+    el('div', {className:'ratio-value ' + severity, textContent:p.contrastRatio+':1'}),
     el('div', {className:'ratio-grade', textContent:p.aaa?'AAA':p.aa?'AA':'Fail'})
   ]);
 
   pairEl.append(swatches, info, ratio);
 
-  if (isFail && p.suggestedFix) {
+  if ((severity === 'critical' || severity === 'warning') && p.suggestedFix) {
     info.appendChild(el('div', {className:'suggestion', textContent:\`Suggested: \${p.suggestedFix.hex} (\${p.suggestedFix.ratio}:1)\`}));
   }
 
@@ -317,6 +356,17 @@ function renderPages() {
     ]);
 
     const body = el('div', {className:'page-body'}, []);
+
+    // Health Score
+    const healthClass = page.healthScore >= 80 ? 'high' : page.healthScore >= 50 ? 'medium' : 'low';
+    const healthScoreEl = el('div', {className:'health-score'}, [
+      el('div', {className:'health-score-ring ' + healthClass, textContent:page.healthScore}),
+      el('div', {className:'health-score-info'}, [
+        el('div', {className:'health-score-title', textContent:'Health Score'}),
+        el('div', {className:'health-score-desc', textContent:page.healthScore >= 80 ? 'Great contrast coverage on this page.' : page.healthScore >= 50 ? 'Some room for improvement.' : 'Several contrast issues to address.'})
+      ])
+    ]);
+    body.appendChild(healthScoreEl);
 
     // Variable Issues Section
     if (page.variableIssues && page.variableIssues.length > 0) {
@@ -369,6 +419,7 @@ function renderPages() {
 
 renderSummary();
 renderSidebar();
+renderDesignerNote();
 renderCrossPage();
 renderPages();
 </script>

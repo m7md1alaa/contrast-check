@@ -15,6 +15,9 @@ export const checkOptionsSchema = z.object({
   quiet: z.boolean().optional(),
   watch: z.boolean().optional(),
   all: z.boolean().optional(),
+  threshold: z.enum(['critical', 'aa', 'strict'], {
+    message: 'Threshold must be one of: critical, aa, strict',
+  }).default('aa'),
   depth: z.coerce.number().int().min(1, 'Depth must be a positive integer').default(1),
   maxPages: z.coerce
     .number()

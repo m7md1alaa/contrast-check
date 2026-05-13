@@ -25,12 +25,24 @@ program
   .option('--all', 'Include passing elements in output (by default only failures are shown)')
   .option('--watch', 'Watch for file changes and re-check automatically')
   .option('--threshold <level>', 'Violation threshold: critical, aa (default), strict', 'aa')
+  .option('--ci', 'CI/agent mode: enables --json --quiet --yes --no-screenshots')
+  .option('--no-screenshots', 'Skip capturing element screenshots (faster, smaller output)')
+  // Devtools exclusion
+  .option('--no-exclude-devtools', 'Include devtools panels in the scan')
+  .option('--exclude-selectors <selectors...>', 'Additional CSS selectors to exclude')
   // Multi-page options
   .option('--crawl', 'Automatically discover and scan linked pages')
   .option('--depth <number>', 'How many levels of links to follow (default: 1)', '1')
   .option('--max-pages <number>', 'Maximum number of pages to scan (default: 10)', '10')
   .option('-y, --yes', 'Skip confirmation prompt and scan all discovered pages')
   .action(async (url: string, options: any) => {
+    // CI mode presets
+    if (options.ci) {
+      options.json = true;
+      options.quiet = true;
+      options.yes = true;
+      options.noScreenshots = true;
+    }
     try {
       const validatedUrl = urlArgumentSchema.parse(url);
       const validatedOptions = checkOptionsSchema.parse(options);

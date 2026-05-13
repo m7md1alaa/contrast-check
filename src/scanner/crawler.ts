@@ -1,6 +1,7 @@
 import { BrowserManager } from './browser';
 import { createExtractorScript } from './extractor';
 import { PageResult } from './types';
+import { BUILTIN_DEVTOOL_SELECTORS } from './devtools-selectors';
 
 export interface ScanOptions {
   url: string;
@@ -8,6 +9,8 @@ export interface ScanOptions {
   viewport?: { width: number; height: number };
   darkMode?: boolean;
   browser?: BrowserManager;
+  excludeDevtools?: boolean;
+  excludeSelectors?: string[];
 }
 
 export async function scanPage(options: ScanOptions): Promise<PageResult> {
@@ -34,7 +37,11 @@ export async function scanPage(options: ScanOptions): Promise<PageResult> {
     const title = await page.title();
 
     const extractor = createExtractorScript();
-    const pairs = await page.evaluate(extractor as any) as import('./types').ElementColorPair[];
+    const selectorsToExclude: string[] = [
+      ...(options.excludeDevtools !== false ? BUILTIN_DEVTOOL_SELECTORS : []),
+      ...(options.excludeSelectors || []),
+    ];
+    const pairs = await page.evaluate(extractor as any, selectorsToExclude) as import('./types').ElementColorPair[];
 
     return {
       url: options.url,

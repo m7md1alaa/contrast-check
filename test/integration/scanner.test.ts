@@ -100,4 +100,90 @@ describe('scanPage integration', () => {
     await page.close();
     await manager.close();
   });
+
+  test('excludes built-in devtool selectors by default', async () => {
+    server = await startTestServer([
+      {
+        path: '/',
+        content: `
+          <!DOCTYPE html>
+          <html>
+          <head><title>Devtools</title></head>
+          <body>
+            <div style="color:#888888; background:#ffffff;">Real content</div>
+            <div data-tanstack-router-devtools style="color:#aaaaaa; background:#bbbbbb;">Devtools panel</div>
+          </body>
+          </html>
+        `,
+      },
+    ]);
+
+    const result = await scanPage({
+      url: server.url + '/',
+      headless: true,
+      viewport: { width: 1280, height: 720 },
+    });
+
+    const texts = result.pairs.map((p) => p.text);
+    expect(texts).toContain('Real content');
+    expect(texts).not.toContain('Devtools panel');
+  });
+
+  test('includes devtools when excludeDevtools is false', async () => {
+    server = await startTestServer([
+      {
+        path: '/',
+        content: `
+          <!DOCTYPE html>
+          <html>
+          <head><title>Devtools</title></head>
+          <body>
+            <div style="color:#888888; background:#ffffff;">Real content</div>
+            <div data-tanstack-router-devtools style="color:#aaaaaa; background:#bbbbbb;">Devtools panel</div>
+          </body>
+          </html>
+        `,
+      },
+    ]);
+
+    const result = await scanPage({
+      url: server.url + '/',
+      headless: true,
+      viewport: { width: 1280, height: 720 },
+      excludeDevtools: false,
+    });
+
+    const texts = result.pairs.map((p) => p.text);
+    expect(texts).toContain('Real content');
+    expect(texts).toContain('Devtools panel');
+  });
+
+  test('excludes custom selectors', async () => {
+    server = await startTestServer([
+      {
+        path: '/',
+        content: `
+          <!DOCTYPE html>
+          <html>
+          <head><title>Custom</title></head>
+          <body>
+            <div style="color:#888888; background:#ffffff;">Real content</div>
+            <div class="debug-panel" style="color:#aaaaaa; background:#bbbbbb;">Debug panel</div>
+          </body>
+          </html>
+        `,
+      },
+    ]);
+
+    const result = await scanPage({
+      url: server.url + '/',
+      headless: true,
+      viewport: { width: 1280, height: 720 },
+      excludeSelectors: ['.debug-panel'],
+    });
+
+    const texts = result.pairs.map((p) => p.text);
+    expect(texts).toContain('Real content');
+    expect(texts).not.toContain('Debug panel');
+  });
 });

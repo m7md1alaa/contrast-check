@@ -26,6 +26,10 @@ export const checkOptionsSchema = z.object({
     .default(10),
   yes: z.boolean().optional(),
   crawl: z.boolean().optional(),
+  ci: z.boolean().optional(),
+  noScreenshots: z.boolean().optional(),
+  excludeDevtools: z.boolean().default(true),
+  excludeSelectors: z.array(z.string()).default([]),
 });
 
 export type ValidatedCheckOptions = z.infer<typeof checkOptionsSchema>;

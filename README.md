@@ -53,6 +53,8 @@ contrastcheck ../dist/index.html
 | `-q, --quiet` | false | Minimal output (no spinners, progress bars) |
 | `--all` | false | Include passing elements in output (default shows failures only) |
 | `--watch` | false | Watch for file changes and re-check automatically |
+| `--no-exclude-devtools` | false | Include devtools panels in the scan |
+| `--exclude-selectors` | [] | Additional CSS selectors to exclude |
 
 ### Examples
 
@@ -76,6 +78,12 @@ contrastcheck ./index.html --watch
 
 # Run with visible browser window
 contrastcheck https://example.com --no-headless
+
+# Include devtools panels in the scan (default excludes them)
+contrastcheck https://example.com --no-exclude-devtools
+
+# Exclude additional custom selectors
+contrastcheck https://example.com --exclude-selectors ".my-overlay" "#debug-panel"
 
 # Minimal output for CI
 contrastcheck https://example.com -q -f compact

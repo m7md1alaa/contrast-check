@@ -38,6 +38,8 @@ async function analyzePage(
     viewport: { width: width || 1280, height: height || 720 },
     darkMode: options.darkMode ?? false,
     browser,
+    excludeDevtools: options.excludeDevtools,
+    excludeSelectors: options.excludeSelectors,
   });
 
   const analyzed: AnalyzedPage = {
@@ -434,21 +436,23 @@ export async function checkCommand(url: string, options: CheckOptions) {
         }
 
         // ── Capture screenshots ──
-        const pagesWithViolations = pages.filter((p) => p.violations.length > 0);
-        if (pagesWithViolations.length > 0) {
-          const screenshotSpinner = options.quiet
-            ? null
-            : logger.startSpinner(
-                `Capturing screenshots for violations across ${pagesWithViolations.length} page(s)...`
-              );
+        if (!options.noScreenshots) {
+          const pagesWithViolations = pages.filter((p) => p.violations.length > 0);
+          if (pagesWithViolations.length > 0) {
+            const screenshotSpinner = options.quiet
+              ? null
+              : logger.startSpinner(
+                  `Capturing screenshots for violations across ${pagesWithViolations.length} page(s)...`
+                );
 
-          for (const page of pagesWithViolations) {
-            await captureScreenshotsForPage(page, options, browser);
-          }
+            for (const page of pagesWithViolations) {
+              await captureScreenshotsForPage(page, options, browser);
+            }
 
-          if (screenshotSpinner) {
-            const totalViolations = pagesWithViolations.reduce((s, p) => s + p.violations.length, 0);
-            logger.stopSpinner(`Captured screenshots for ${totalViolations} violation(s)`);
+            if (screenshotSpinner) {
+              const totalViolations = pagesWithViolations.reduce((s, p) => s + p.violations.length, 0);
+              logger.stopSpinner(`Captured screenshots for ${totalViolations} violation(s)`);
+            }
           }
         }
 

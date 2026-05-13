@@ -14,7 +14,7 @@ export interface ExtractedPair {
 }
 
 export function createExtractorScript() {
-  return function extractFromPage(): ExtractedPair[] {
+  return function extractFromPage(excludeSelectors: string[]): ExtractedPair[] {
     function getXPath(element: Element): string {
       if (element.id) return `//*[@id="${element.id}"]`;
       if (element === document.body) return '/html/body';
@@ -189,6 +189,22 @@ export function createExtractorScript() {
 
       // Skip script/style tags
       if (['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(element.tagName)) continue;
+
+      // Exclude devtools / custom selectors
+      if (excludeSelectors && excludeSelectors.length > 0) {
+        let excluded = false;
+        for (const sel of excludeSelectors) {
+          try {
+            if (element.matches(sel) || element.closest(sel)) {
+              excluded = true;
+              break;
+            }
+          } catch {
+            // Invalid selector, ignore
+          }
+        }
+        if (excluded) continue;
+      }
 
       const style = window.getComputedStyle(element);
       const color = style.color;

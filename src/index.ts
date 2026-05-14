@@ -10,7 +10,7 @@ const program = new Command();
 program
   .name('contrastcheck')
   .description('Check color contrast accessibility on websites')
-  .version('1.0.0');
+  .version('1.3.0');
 
 program
   .command('check')

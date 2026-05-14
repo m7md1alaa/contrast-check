@@ -34,6 +34,14 @@ export const checkOptionsSchema = z.object({
 
 export type ValidatedCheckOptions = z.infer<typeof checkOptionsSchema>;
 
+export const compareOptionsSchema = z.object({
+  json: z.boolean().optional(),
+  table: z.boolean().optional(),
+  hex: z.boolean().optional(),
+});
+
+export type ValidatedCompareOptions = z.infer<typeof compareOptionsSchema>;
+
 export const urlArgumentSchema = z
   .string()
   .min(1, 'URL is required')

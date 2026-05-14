@@ -1,8 +1,9 @@
 import { Command } from 'commander';
 import { z } from 'zod';
 import { checkCommand } from './commands/check';
+import { compareCommand } from './commands/compare';
 import { wizardCommand } from './commands/wizard';
-import { checkOptionsSchema, urlArgumentSchema } from './validation';
+import { checkOptionsSchema, compareOptionsSchema, urlArgumentSchema } from './validation';
 
 const program = new Command();
 
@@ -63,9 +64,22 @@ program
   .description('Interactive setup wizard')
   .action(wizardCommand);
 
+program
+  .command('compare')
+  .description('Compare contrast between two colors')
+  .argument('<fg>', 'Foreground color (hex, rgb, hsl, oklch, etc.)')
+  .argument('<bg>', 'Background color (hex, rgb, hsl, oklch, etc.)')
+  .option('--json', 'Output as JSON')
+  .option('--table', 'Output as table')
+  .option('--hex', 'Show resolved hex values of input colors')
+  .action((fg: string, bg: string, options: any) => {
+    const validated = compareOptionsSchema.parse(options);
+    compareCommand(fg, bg, validated);
+  });
+
 // Smart fallback: if the first positional argument looks like a URL or file path
 // but isn't a known command, automatically treat it as `check <arg>`
-const knownCommands = ['check', 'wizard', 'help'];
+const knownCommands = ['check', 'wizard', 'compare', 'help'];
 const firstArg = process.argv[2];
 
 if (firstArg && !firstArg.startsWith('-') && !knownCommands.includes(firstArg)) {
